@@ -280,21 +280,21 @@ export default function ClassManagement() {
     return session ? session.name : "Unknown Session";
   };
 
-  // Fetch subjects for a class
-  const useSubjectsForClass = (classId: string) => {
-    return useQuery<Subject[]>({
-      queryKey: ["/api/classes", classId, "subjects"],
-      enabled: !!classId,
-    });
-  };
+  // Fetch all subjects
+  const {
+    data: allSubjects = [],
+    isLoading: isLoadingAllSubjects,
+  } = useQuery<Subject[]>({
+    queryKey: ["/api/subjects"],
+  });
 
-  // Fetch students for a class
-  const useStudentsForClass = (classId: string) => {
-    return useQuery<Student[]>({
-      queryKey: ["/api/classes", classId, "students"],
-      enabled: !!classId,
-    });
-  };
+  // Fetch all students
+  const {
+    data: allStudents = [],
+    isLoading: isLoadingAllStudents,
+  } = useQuery<Student[]>({
+    queryKey: ["/api/students"],
+  });
 
   return (
     <AppShell>
@@ -314,7 +314,7 @@ export default function ClassManagement() {
         </div>
 
         {/* Class list */}
-        {isLoadingClasses || isLoadingUsers || isLoadingSessions ? (
+        {isLoadingClasses || isLoadingUsers || isLoadingSessions || isLoadingAllSubjects || isLoadingAllStudents ? (
           <div className="flex justify-center items-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
@@ -325,16 +325,9 @@ export default function ClassManagement() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {classes.map((classItem) => {
-              // Get subjects and students for this class
-              const { 
-                data: subjects = [],
-                isLoading: isLoadingSubjects
-              } = useSubjectsForClass(classItem.id);
-              
-              const { 
-                data: students = [],
-                isLoading: isLoadingStudents
-              } = useStudentsForClass(classItem.id);
+              // Filter subjects and students for this class from the already fetched data
+              const subjects = allSubjects.filter(subject => subject.classId === classItem.id);
+              const students = allStudents.filter(student => student.classId === classItem.id);
 
               return (
                 <Card key={classItem.id} className="overflow-hidden">
@@ -370,11 +363,11 @@ export default function ClassManagement() {
                           <AccordionTrigger className="text-sm font-medium py-1">
                             <span className="flex items-center">
                               <GraduationCap className="h-4 w-4 mr-2 text-gray-400" />
-                              Subjects ({isLoadingSubjects ? "..." : subjects.length})
+                              Subjects ({isLoadingAllSubjects ? "..." : subjects.length})
                             </span>
                           </AccordionTrigger>
                           <AccordionContent>
-                            {isLoadingSubjects ? (
+                            {isLoadingAllSubjects ? (
                               <div className="flex justify-center py-2">
                                 <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
                               </div>
@@ -400,11 +393,11 @@ export default function ClassManagement() {
                           <AccordionTrigger className="text-sm font-medium py-1">
                             <span className="flex items-center">
                               <Users className="h-4 w-4 mr-2 text-gray-400" />
-                              Students ({isLoadingStudents ? "..." : students.length})
+                              Students ({isLoadingAllStudents ? "..." : students.length})
                             </span>
                           </AccordionTrigger>
                           <AccordionContent>
-                            {isLoadingStudents ? (
+                            {isLoadingAllStudents ? (
                               <div className="flex justify-center py-2">
                                 <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
                               </div>
