@@ -1,14 +1,17 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-import firebaseStorage from "./firebase-storage";
-import { setupAuth } from "./auth";
+import { storage } from "./storage"; 
 import { z } from "zod";
-import { SubmissionInput } from "@shared/firebase-types";
+import { 
+  SubmissionInput, 
+  DefaulterPrediction, 
+  collections 
+} from "@shared/schema";
+import { notificationService } from "./notification-service";
+import { defaulterPredictionService } from "./defaulter-prediction";
+import { twilioService } from "./twilio-service";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Set up authentication routes
-  setupAuth(app);
-
   // Create HTTP server
   const httpServer = createServer(app);
 
@@ -887,7 +890,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/notification-templates", isAuthenticated, async (req, res) => {
     try {
-      const template = await firebaseStorage.createNotificationTemplate({
+      const template = await storage.createNotificationTemplate({
         ...req.body,
         createdBy: req.user.id
       });
@@ -896,6 +899,173 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Failed to create notification template" });
+    }
+  });
+  
+  // AI-Powered Defaulter Prediction
+  app.get("/api/classes/:classId/ai-predict-defaulters", isAuthenticated, async (req, res) => {
+    try {
+      const threshold = req.query.threshold ? parseInt(req.query.threshold as string) : 2;
+      
+      // Get the class to verify access
+      const classData = await storage.getClass(req.params.classId);
+      if (!classData) {
+        return res.status(404).json({ message: "Class not found" });
+      }
+      
+      // Verify permissions (Only admin or class teacher of this class can view)
+      const isClassTeacher = req.user?.role === 'class_teacher' && req.user?.assignedClassId === req.params.classId;
+      const isAdmin = req.user?.role === 'admin';
+      
+      if (!isAdmin && !isClassTeacher) {
+        return res.status(403).json({ message: "You don't have permission to access this resource" });
+      }
+      
+      // Get students with submission history for prediction
+      const studentsHistory = await storage.getPotentialDefaulters(req.params.classId, threshold);
+      
+      // Use AI service to predict defaulters
+      const predictions = defaulterPredictionService.predictDefaulters(studentsHistory, threshold);
+      
+      res.json(predictions);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Failed to predict defaulters" });
+    }
+  });
+  
+  // Send notifications to defaulter students' parents
+  app.post("/api/classes/:classId/send-defaulter-notifications", isAuthenticated, async (req, res) => {
+    try {
+      const { threshold } = req.body;
+      
+      // Verify class exists
+      const classData = await storage.getClass(req.params.classId);
+      if (!classData) {
+        return res.status(404).json({ message: "Class not found" });
+      }
+      
+      // Verify permissions
+      const isClassTeacher = req.user?.role === 'class_teacher' && req.user?.assignedClassId === req.params.classId;
+      const isAdmin = req.user?.role === 'admin';
+      
+      if (!isAdmin && !isClassTeacher) {
+        return res.status(403).json({ message: "You don't have permission to access this resource" });
+      }
+      
+      // Check if Twilio is configured
+      if (!twilioService.isReady()) {
+        return res.status(503).json({ 
+          message: "SMS notification service is not configured. Please set up Twilio credentials.",
+          missingSecrets: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER"]
+        });
+      }
+      
+      // Send defaulter notifications
+      const notificationCount = await notificationService.sendDefaulterNotifications(
+        req.params.classId, 
+        threshold || 2
+      );
+      
+      res.json({ 
+        success: true, 
+        message: `Sent ${notificationCount} defaulter notifications`,
+        notificationCount
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Failed to send defaulter notifications" });
+    }
+  });
+  
+  // Enhanced endpoint for sending missing submission notifications
+  app.post("/api/classes/:classId/subjects/:subjectId/send-missing-notifications", isAuthenticated, async (req, res) => {
+    try {
+      const { cycleId } = req.body;
+      
+      if (!cycleId) {
+        return res.status(400).json({ message: "Cycle ID is required" });
+      }
+      
+      // Verify subject and class exist
+      const subject = await storage.getSubject(req.params.subjectId);
+      if (!subject) {
+        return res.status(404).json({ message: "Subject not found" });
+      }
+      
+      const classData = await storage.getClass(req.params.classId);
+      if (!classData) {
+        return res.status(404).json({ message: "Class not found" });
+      }
+      
+      // Check if Twilio is configured
+      if (!twilioService.isReady()) {
+        return res.status(503).json({ 
+          message: "SMS notification service is not configured. Please set up Twilio credentials.",
+          missingSecrets: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER"]
+        });
+      }
+      
+      // Send missing submission notifications
+      const notificationCount = await notificationService.sendMissingSubmissionNotifications(
+        req.params.classId,
+        req.params.subjectId,
+        cycleId
+      );
+      
+      res.json({
+        success: true,
+        message: `Sent ${notificationCount} missing submission notifications`,
+        notificationCount
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Failed to send missing submission notifications" });
+    }
+  });
+  
+  // Check Twilio service status
+  app.get("/api/notification-service/status", isAuthenticated, async (req, res) => {
+    try {
+      // Only admins can check service status
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const isConfigured = twilioService.isReady();
+      
+      res.json({
+        service: "Twilio SMS",
+        status: isConfigured ? "configured" : "not configured",
+        isReady: isConfigured,
+        missingSecrets: isConfigured ? [] : ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER"]
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Failed to check notification service status" });
+    }
+  });
+  
+  // Initialize default notification templates
+  app.post("/api/notification-templates/initialize-defaults", isAuthenticated, async (req, res) => {
+    try {
+      // Only admins can initialize default templates
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      await notificationService.initializeDefaultTemplates(req.user.id);
+      
+      const templates = await storage.getNotificationTemplates();
+      
+      res.json({
+        success: true,
+        message: "Default notification templates initialized",
+        templates
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Failed to initialize default templates" });
     }
   });
 

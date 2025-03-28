@@ -1,8 +1,11 @@
 import { pgTable, text, serial, integer, boolean, timestamp, unique, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { Timestamp } from "../server/firebase-admin";
 
-// Users (teachers and admins)
+// Define the Firebase types
+// Our application uses Firebase types in the actual implementation
+// but we also maintain Postgres schema definitions for type safety and potential future migration
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -229,36 +232,238 @@ export const insertNotificationTemplateSchema = createInsertSchema(notificationT
   isDefault: true,
 });
 
-// Define types
-export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
+// Firebase Types - These are the actual types used by our application
+// User type
+export interface User {
+  id: string;
+  username: string;
+  password: string;
+  fullName: string;
+  role: 'admin' | 'teacher' | 'class-teacher';
+  avatarInitials: string;
+  email?: string;
+  phone?: string;
+  createdAt: Timestamp;
+  lastLogin?: Timestamp;
+  assignedClassId?: string; // For class teachers
+  authUid?: string; // Firebase Auth UID if using Firebase Auth
+}
 
-export type AcademicSession = typeof academicSessions.$inferSelect;
-export type InsertAcademicSession = z.infer<typeof insertAcademicSessionSchema>;
+export interface UserInput {
+  username: string;
+  password: string;
+  fullName: string;
+  role: 'admin' | 'teacher' | 'class-teacher';
+  email?: string;
+  phone?: string;
+}
 
-export type Class = typeof classes.$inferSelect;
-export type InsertClass = z.infer<typeof insertClassSchema>;
+// Academic Session type
+export interface AcademicSession {
+  id: string;
+  name: string;
+  startDate: Timestamp;
+  endDate: Timestamp;
+  isActive: boolean;
+}
 
-export type Subject = typeof subjects.$inferSelect;
-export type InsertSubject = z.infer<typeof insertSubjectSchema>;
+export interface SessionInput {
+  name: string;
+  startDate: Date;
+  endDate: Date;
+  isActive?: boolean;
+}
 
-export type Student = typeof students.$inferSelect;
-export type InsertStudent = z.infer<typeof insertStudentSchema>;
+// Class type
+export interface Class {
+  id: string;
+  name: string;
+  teacherId: string; // Class teacher ID
+  sessionId: string; // Academic session ID
+  createdAt: Timestamp;
+}
 
-export type StudentClassHistory = typeof studentClassHistory.$inferSelect;
-export type InsertStudentClassHistory = z.infer<typeof insertStudentClassHistorySchema>;
+export interface ClassInput {
+  name: string;
+  teacherId: string;
+  sessionId: string;
+}
 
-export type SubmissionCycle = typeof submissionCycles.$inferSelect;
-export type InsertSubmissionCycle = z.infer<typeof insertSubmissionCycleSchema>;
+// Subject type
+export interface Subject {
+  id: string;
+  name: string;
+  teacherId: string;
+  classId: string;
+  notebookColor: string;
+  submissionFrequency: 'weekly' | 'bi-weekly' | 'monthly';
+}
 
-export type Submission = typeof submissions.$inferSelect;
-export type InsertSubmission = z.infer<typeof insertSubmissionSchema>;
+export interface SubjectInput {
+  name: string;
+  teacherId: string;
+  classId: string;
+  notebookColor?: string;
+  submissionFrequency?: 'weekly' | 'bi-weekly' | 'monthly';
+}
 
-export type NotificationHistory = typeof notificationHistory.$inferSelect;
-export type InsertNotificationHistory = z.infer<typeof insertNotificationHistorySchema>;
+// Student type
+export interface Student {
+  id: string;
+  fullName: string;
+  scholarNumber: string; // 5-digit admission number
+  rollNumber: number;
+  classId: string;
+  parentName: string;
+  parentPhone?: string;
+  parentEmail?: string;
+  avatarInitials: string;
+  photoUrl?: string;
+  joinedAt: Timestamp;
+  isActive: boolean;
+}
 
-export type NotificationTemplate = typeof notificationTemplates.$inferSelect;
-export type InsertNotificationTemplate = z.infer<typeof insertNotificationTemplateSchema>;
+export interface StudentInput {
+  fullName: string;
+  scholarNumber: string;
+  rollNumber: number;
+  classId: string;
+  parentName: string;
+  parentPhone?: string;
+  parentEmail?: string;
+  photoUrl?: string;
+  isActive?: boolean;
+}
+
+// Student Class History type
+export interface StudentClassHistory {
+  id: string;
+  studentId: string;
+  oldClassId: string;
+  newClassId: string;
+  changedAt: Timestamp;
+  changedBy: string; // User ID or 'system'
+  reason?: string;
+}
+
+// Submission Cycle type
+export interface SubmissionCycle {
+  id: string;
+  subjectId: string;
+  classId: string;
+  startDate: Timestamp;
+  endDate?: Timestamp;
+  name?: string;
+  status: 'active' | 'completed';
+  createdBy: string; // User ID
+  createdAt: Timestamp;
+}
+
+export interface SubmissionCycleInput {
+  subjectId: string;
+  classId: string;
+  startDate: Date;
+  endDate?: Date;
+  name?: string;
+  createdBy?: string;
+}
+
+// Submission type
+export interface Submission {
+  id: string;
+  studentId: string;
+  subjectId: string;
+  cycleId: string;
+  date: Timestamp;
+  status: 'submitted' | 'returned' | 'missing';
+  submittedAt?: Timestamp;
+  returnedAt?: Timestamp;
+  notificationSent: boolean;
+  notificationSentAt?: Timestamp;
+  notes?: string;
+  followUpRequired: boolean;
+  consecutiveMisses: number;
+}
+
+export interface SubmissionInput {
+  studentId: string;
+  subjectId: string;
+  cycleId: string;
+  status: 'submitted' | 'returned' | 'missing';
+  submittedAt?: Date;
+  returnedAt?: Date;
+  notes?: string;
+  followUpRequired?: boolean;
+  consecutiveMisses?: number;
+}
+
+// Notification History type
+export interface NotificationHistory {
+  id: string;
+  studentId: string;
+  submissionId?: string;
+  sent: boolean;
+  sentAt: Timestamp;
+  messageType: 'sms' | 'email' | 'app';
+  messageContent: string;
+  recipientNumber?: string;
+  recipientEmail?: string;
+  status: 'delivered' | 'failed' | 'pending';
+  errorMessage?: string;
+}
+
+// Notification Template type
+export interface NotificationTemplate {
+  id: string;
+  name: string;
+  type: 'submission_reminder' | 'missing_submission' | 'defaulter_alert';
+  subject: string;
+  template: string;
+  createdBy?: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+  isDefault?: boolean;
+}
+
+export interface NotificationTemplateInput {
+  name: string;
+  type: string;
+  subject: string;
+  template: string;
+  createdBy?: string;
+  isDefault?: boolean;
+}
+
+// Postgres Schema Types (for reference) - These aren't used directly
+export type PgUser = typeof users.$inferSelect;
+export type PgInsertUser = z.infer<typeof insertUserSchema>;
+
+export type PgAcademicSession = typeof academicSessions.$inferSelect;
+export type PgInsertAcademicSession = z.infer<typeof insertAcademicSessionSchema>;
+
+export type PgClass = typeof classes.$inferSelect;
+export type PgInsertClass = z.infer<typeof insertClassSchema>;
+
+export type PgSubject = typeof subjects.$inferSelect;
+export type PgInsertSubject = z.infer<typeof insertSubjectSchema>;
+
+export type PgStudent = typeof students.$inferSelect;
+export type PgInsertStudent = z.infer<typeof insertStudentSchema>;
+
+export type PgStudentClassHistory = typeof studentClassHistory.$inferSelect;
+export type PgInsertStudentClassHistory = z.infer<typeof insertStudentClassHistorySchema>;
+
+export type PgSubmissionCycle = typeof submissionCycles.$inferSelect;
+export type PgInsertSubmissionCycle = z.infer<typeof insertSubmissionCycleSchema>;
+
+export type PgSubmission = typeof submissions.$inferSelect;
+export type PgInsertSubmission = z.infer<typeof insertSubmissionSchema>;
+
+export type PgNotificationHistory = typeof notificationHistory.$inferSelect;
+export type PgInsertNotificationHistory = z.infer<typeof insertNotificationHistorySchema>;
+
+export type PgNotificationTemplate = typeof notificationTemplates.$inferSelect;
+export type PgInsertNotificationTemplate = z.infer<typeof insertNotificationTemplateSchema>;
 
 // Special types for the frontend
 export type SubmissionWithDetails = Submission & {
@@ -273,6 +478,8 @@ export type StudentWithSubmission = Student & {
   submittedCount?: number;
   returnedCount?: number;
   consecutiveMisses?: number;
+  defaultProbability?: number;
+  historyPattern?: string;
 };
 
 export type SubjectWithStats = Subject & {
@@ -281,4 +488,36 @@ export type SubjectWithStats = Subject & {
   submittedCount: number;
   missingCount: number;
   returnedCount: number;
+  teacher?: User;
+};
+
+export type ClassWithStats = Class & {
+  studentCount: number;
+  subjects: SubjectWithStats[];
+  teacher: User;
+};
+
+// Advanced AI prediction types
+export interface DefaulterPrediction {
+  studentId: string;
+  studentName: string;
+  scholarNumber: string;
+  defaultProbability: number;
+  missingCount: number;
+  historyPattern: string;
+  reasoning: string[];
+}
+
+// Collection names
+export const collections = {
+  USERS: 'users',
+  SESSIONS: 'academic_sessions',
+  CLASSES: 'classes',
+  SUBJECTS: 'subjects',
+  STUDENTS: 'students',
+  STUDENT_CLASS_HISTORY: 'student_class_history',
+  SUBMISSION_CYCLES: 'submission_cycles',
+  SUBMISSIONS: 'submissions',
+  NOTIFICATION_HISTORY: 'notification_history',
+  NOTIFICATION_TEMPLATES: 'notification_templates'
 };

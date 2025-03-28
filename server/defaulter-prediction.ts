@@ -1,3 +1,4 @@
+import { DefaulterPrediction } from '@shared/schema';
 import { log } from './vite';
 
 /**
@@ -26,19 +27,6 @@ interface StudentSubmissionHistory {
 }
 
 /**
- * Prediction result for a potential defaulter
- */
-export interface DefaulterPrediction {
-  studentId: string;
-  studentName: string;
-  scholarNumber: string;
-  defaultProbability: number;
-  missingCount: number;
-  historyPattern: string;
-  reasoning: string[];
-}
-
-/**
  * AI service for predicting potential defaulters
  */
 export class DefaulterPredictionService {
@@ -55,147 +43,154 @@ export class DefaulterPredictionService {
     const predictions: DefaulterPrediction[] = [];
 
     for (const student of studentsHistory) {
-      // Skip students with no submission history
-      if (student.submissions.length === 0) continue;
+      // Skip students with no submissions
+      if (student.submissions.length === 0) {
+        continue;
+      }
 
-      // Initialize factors that contribute to prediction
-      const factors: string[] = [];
-      let probability = 0;
-
-      // Calculate statistics
+      // Calculate stats about submissions
       const stats = this.calculateSubmissionStats(student.submissions);
       
-      // Factor 1: Missing submissions count
-      const missingSubmissions = stats.missingCount;
-      if (missingSubmissions >= threshold) {
-        probability += 30;
-        factors.push(`Has ${missingSubmissions} missing submissions`);
+      // Skip students with no missing submissions
+      if (stats.missingCount === 0) {
+        continue;
       }
-
-      // Factor 2: Previous missing submissions
-      if (student.previousMissingCount > 0) {
-        const addedProbability = Math.min(student.previousMissingCount * 10, 30);
-        probability += addedProbability;
-        factors.push(`Has ${student.previousMissingCount} missing submissions from previous cycles`);
-      }
-
-      // Factor 3: Submission rate
-      const submissionRate = stats.submissionRate;
-      if (submissionRate < 70) {
-        const rateBasedProbability = Math.round((100 - submissionRate) * 0.3);
-        probability += rateBasedProbability;
-        factors.push(`Low submission rate (${submissionRate}%)`);
-      }
-
-      // Factor 4: Consecutive missing pattern
-      const consecutivePattern = this.detectConsecutivePattern(student.submissions);
-      if (consecutivePattern.hasPattern) {
-        probability += 15;
-        factors.push(consecutivePattern.reason);
-      }
-
-      // Factor 5: Late submissions
-      if (stats.lateSubmissions > 0) {
-        const lateSubmissionsFactor = Math.min(stats.lateSubmissions * 5, 15);
-        probability += lateSubmissionsFactor;
-        factors.push(`Has ${stats.lateSubmissions} late submissions`);
-      }
-
-      // Adjust probability to ensure it doesn't exceed 100%
-      probability = Math.min(probability, 100);
       
-      // Only include students with non-zero probability
-      if (probability > 0) {
+      // Check for consecutive missing pattern
+      const consecutivePattern = this.detectConsecutivePattern(student.submissions);
+      
+      // Generate reasoning for prediction
+      const reasoning: string[] = [];
+      
+      if (stats.missingCount >= threshold) {
+        reasoning.push(`Student has ${stats.missingCount} missing submissions, which is at or above the threshold of ${threshold}.`);
+      }
+      
+      if (consecutivePattern.hasPattern) {
+        reasoning.push(consecutivePattern.reason);
+      }
+      
+      if (student.previousMissingCount > 0) {
+        reasoning.push(`Student has a history of ${student.previousMissingCount} missing submissions from previous cycles.`);
+      }
+      
+      // Calculate a default probability based on factors
+      let defaultProbability = 0;
+      
+      // Factor 1: Percentage of missing submissions (weighted 40%)
+      const missingPercentage = stats.missingCount / student.submissions.length;
+      defaultProbability += missingPercentage * 0.4;
+      
+      // Factor 2: Consecutive pattern (weighted 30%)
+      if (consecutivePattern.hasPattern) {
+        defaultProbability += 0.3;
+      }
+      
+      // Factor 3: Previous history (weighted 30%)
+      const previousHistoryFactor = Math.min(student.previousMissingCount / 5, 1); // Cap at 1
+      defaultProbability += previousHistoryFactor * 0.3;
+      
+      // Generate a human-readable pattern description
+      const historyPattern = this.generateHistoryPattern(
+        stats,
+        consecutivePattern.hasPattern,
+        student.previousMissingCount
+      );
+      
+      // Only add predictions for students with missing submissions
+      if (stats.missingCount > 0) {
         predictions.push({
           studentId: student.studentId,
           studentName: student.studentName,
           scholarNumber: student.scholarNumber,
-          defaultProbability: probability,
-          missingCount: stats.missingCount + student.previousMissingCount,
-          historyPattern: this.generateHistoryPattern(stats, consecutivePattern.hasPattern),
-          reasoning: factors
+          defaultProbability,
+          missingCount: stats.missingCount,
+          historyPattern,
+          reasoning
         });
       }
     }
-
+    
     // Sort by default probability (highest first)
     return predictions.sort((a, b) => b.defaultProbability - a.defaultProbability);
   }
-
+  
   /**
    * Calculates submission statistics for a student
    * @param submissions Array of submission data
    * @returns Statistics about the submissions
    */
   private calculateSubmissionStats(submissions: SubmissionData[]) {
-    const totalSubmissions = submissions.length;
-    const missingCount = submissions.filter(s => s.status === 'missing').length;
-    const submittedCount = submissions.filter(s => s.status === 'submitted' || s.status === 'returned').length;
-    const returnedCount = submissions.filter(s => s.status === 'returned').length;
-    
-    // Calculate submission rate (percentage of non-missing submissions)
-    const submissionRate = totalSubmissions > 0 
-      ? Math.round((submittedCount / totalSubmissions) * 100) 
-      : 0;
-    
-    // Calculate late submissions
-    const lateSubmissions = submissions.filter(s => {
-      if (!s.submittedAt || !s.dueDate) return false;
-      return s.submittedAt > s.dueDate;
-    }).length;
-
-    return {
-      totalSubmissions,
-      missingCount,
-      submittedCount,
-      returnedCount,
-      submissionRate,
-      lateSubmissions
+    const stats = {
+      totalCount: submissions.length,
+      submittedCount: 0,
+      returnedCount: 0,
+      missingCount: 0,
+      lateSubmissionCount: 0
     };
+    
+    for (const submission of submissions) {
+      if (submission.status === 'submitted') {
+        stats.submittedCount++;
+        
+        // Check if it was submitted late (after due date)
+        if (submission.submittedAt && submission.dueDate && 
+            submission.submittedAt > submission.dueDate) {
+          stats.lateSubmissionCount++;
+        }
+      } else if (submission.status === 'returned') {
+        stats.returnedCount++;
+      } else if (submission.status === 'missing') {
+        stats.missingCount++;
+      }
+    }
+    
+    return stats;
   }
-
+  
   /**
    * Detects consecutive patterns in missing submissions
    * @param submissions Array of submission data
    * @returns Object indicating whether a pattern was found and the reason
    */
   private detectConsecutivePattern(submissions: SubmissionData[]): { hasPattern: boolean; reason: string } {
-    // Sort submissions by date (cycle start date)
-    const sortedSubmissions = [...submissions].sort((a, b) => 
-      a.cycleStartDate.getTime() - b.cycleStartDate.getTime()
+    // Sort submissions by cycle start date
+    const sortedSubmissions = [...submissions].sort(
+      (a, b) => a.cycleStartDate.getTime() - b.cycleStartDate.getTime()
     );
     
-    let consecutiveMissing = 0;
+    let consecutiveMissingCount = 0;
     let maxConsecutiveMissing = 0;
     
-    // Count consecutive missing submissions
+    // Track consecutive missing submissions
     for (let i = 0; i < sortedSubmissions.length; i++) {
       if (sortedSubmissions[i].status === 'missing') {
-        consecutiveMissing++;
-        maxConsecutiveMissing = Math.max(maxConsecutiveMissing, consecutiveMissing);
+        consecutiveMissingCount++;
+        maxConsecutiveMissing = Math.max(maxConsecutiveMissing, consecutiveMissingCount);
       } else {
-        consecutiveMissing = 0;
+        consecutiveMissingCount = 0;
       }
     }
     
-    // Check if ending on a streak of missing submissions
-    const endingOnMissingStreak = consecutiveMissing >= 2;
+    // Check if the most recent submissions are missing
+    const recentSubmissions = sortedSubmissions.slice(-3); // Last 3 submissions
+    const recentMissingCount = recentSubmissions.filter(s => s.status === 'missing').length;
     
-    if (maxConsecutiveMissing >= 3) {
-      return { 
-        hasPattern: true, 
-        reason: `Has pattern of ${maxConsecutiveMissing} consecutive missing submissions` 
+    if (maxConsecutiveMissing >= 2) {
+      return {
+        hasPattern: true,
+        reason: `Found a pattern of ${maxConsecutiveMissing} consecutive missing submissions.`
       };
-    } else if (endingOnMissingStreak) {
-      return { 
-        hasPattern: true, 
-        reason: `Currently on a streak of ${consecutiveMissing} missing submissions` 
+    } else if (recentMissingCount >= 2) {
+      return {
+        hasPattern: true,
+        reason: `${recentMissingCount} out of the last 3 submissions are missing.`
       };
     }
     
     return { hasPattern: false, reason: '' };
   }
-
+  
   /**
    * Generates a human-readable history pattern description
    * @param stats Submission statistics
@@ -203,41 +198,41 @@ export class DefaulterPredictionService {
    * @returns String description of the submission pattern
    */
   private generateHistoryPattern(
-    stats: { 
-      totalSubmissions: number;
-      missingCount: number;
+    stats: {
+      totalCount: number;
       submittedCount: number;
       returnedCount: number;
-      submissionRate: number;
-      lateSubmissions: number;
+      missingCount: number;
+      lateSubmissionCount: number;
     },
-    hasConsecutivePattern: boolean
+    hasConsecutivePattern: boolean,
+    previousMissingCount: number
   ): string {
-    if (stats.totalSubmissions < 3) {
-      return 'Insufficient data';
+    if (stats.missingCount === 0) {
+      return "Regular submission pattern";
     }
     
     if (hasConsecutivePattern) {
-      return 'Sequential missing submissions';
+      if (previousMissingCount > 0) {
+        return "Consistent pattern of missing submissions across multiple cycles";
+      } else {
+        return "Recent pattern of consecutive missing submissions";
+      }
     }
     
-    if (stats.lateSubmissions > stats.totalSubmissions / 4) {
-      return 'Frequently submits late';
+    if (stats.lateSubmissionCount > 0 && stats.missingCount > 0) {
+      return "Mixed pattern of late and missing submissions";
     }
     
-    if (stats.submissionRate < 50) {
-      return 'Low submission rate overall';
+    if (stats.missingCount === 1 && stats.totalCount > 3) {
+      return "Generally consistent with occasional missing submissions";
     }
     
-    if (stats.submissionRate >= 90) {
-      return 'Excellent submission record';
-    }
-
-    if (stats.missingCount > 0 && stats.missingCount < 3) {
-      return 'Occasional missing submissions';
+    if (previousMissingCount > 3) {
+      return "Long-term pattern of inconsistent submissions";
     }
     
-    return 'Regular submission pattern';
+    return "Irregular submission pattern";
   }
 }
 
