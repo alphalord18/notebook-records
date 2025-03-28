@@ -44,22 +44,42 @@ async function createInitialUsers() {
       fullName: "System Admin",
       role: "admin",
       email: "admin@school.edu",
-      phone: "1234567890"
+      phone: "1234567890",
+      avatarInitials: "SA"
     });
   }
   
-  // Check if demo teacher exists
-  const teacherUser = await storage.getUserByUsername("teacher");
-  if (!teacherUser) {
-    console.log("Creating demo teacher user...");
-    const hashedPassword = await hashPassword("teacher123");
+  // Check if subject teacher exists
+  const subjectTeacher = await storage.getUserByUsername("subject");
+  if (!subjectTeacher) {
+    console.log("Creating subject teacher user...");
+    const hashedPassword = await hashPassword("subject123");
     await storage.createUser({
-      username: "teacher",
+      username: "subject",
       password: hashedPassword,
-      fullName: "Demo Teacher",
-      role: "teacher", 
-      email: "teacher@school.edu",
-      phone: "9876543210"
+      fullName: "Math Teacher",
+      role: "subject_teacher", 
+      email: "math@school.edu",
+      phone: "9876543210",
+      avatarInitials: "MT",
+      assignedSubjectId: "math001" // This will be created later
+    });
+  }
+  
+  // Check if class teacher exists
+  const classTeacher = await storage.getUserByUsername("class");
+  if (!classTeacher) {
+    console.log("Creating class teacher user...");
+    const hashedPassword = await hashPassword("class123");
+    await storage.createUser({
+      username: "class",
+      password: hashedPassword,
+      fullName: "Class Teacher",
+      role: "class_teacher", 
+      email: "class@school.edu",
+      phone: "5555555555",
+      avatarInitials: "CT",
+      assignedClassId: "class001" // This will be created later
     });
   }
 }
@@ -190,7 +210,8 @@ export function setupAuth(app: Express) {
       const { id } = req.params;
       const { role } = req.body;
       
-      if (!role || !['admin', 'teacher'].includes(role)) {
+      const validRoles = ['admin', 'subject_teacher', 'class_teacher'];
+      if (!role || !validRoles.includes(role)) {
         return res.status(400).json({ message: "Invalid role" });
       }
       

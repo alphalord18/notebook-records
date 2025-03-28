@@ -19,6 +19,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     res.status(401).json({ message: "Unauthorized" });
   };
+  
+  // Role-based middleware
+  const isAdmin = (req: Request, res: Response, next: Function) => {
+    if (req.isAuthenticated() && req.user?.role === 'admin') {
+      return next();
+    }
+    res.status(403).json({ message: "Admin access required" });
+  };
+  
+  const isSubjectTeacher = (req: Request, res: Response, next: Function) => {
+    if (req.isAuthenticated() && 
+       (req.user?.role === 'subject_teacher' || req.user?.role === 'admin')) {
+      return next();
+    }
+    res.status(403).json({ message: "Subject teacher access required" });
+  };
+  
+  const isClassTeacher = (req: Request, res: Response, next: Function) => {
+    if (req.isAuthenticated() && 
+       (req.user?.role === 'class_teacher' || req.user?.role === 'admin')) {
+      return next();
+    }
+    res.status(403).json({ message: "Class teacher access required" });
+  };
+  
+  const isClassTeacherForClass = (req: Request, res: Response, next: Function) => {
+    const classId = req.params.classId || req.body.classId;
+    
+    if (req.isAuthenticated() && 
+       (req.user?.role === 'admin' || 
+       (req.user?.role === 'class_teacher' && req.user?.assignedClassId === classId))) {
+      return next();
+    }
+    res.status(403).json({ message: "You don't have access to this class" });
+  };
 
   // Academic Sessions
   app.get("/api/sessions", isAuthenticated, async (req, res) => {
@@ -76,10 +111,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/classes", isAuthenticated, async (req, res) => {
     try {
       let classes;
-      if (req.user.role === "admin") {
+      if (req.user?.role === "admin") {
         classes = await firebaseStorage.getClasses();
+      } else if (req.user?.role === "class_teacher" && req.user?.assignedClassId) {
+        // For class teachers, only return their assigned class
+        const assignedClass = await firebaseStorage.getClass(req.user.assignedClassId);
+        classes = assignedClass ? [assignedClass] : [];
+      } else if (req.user?.role === "subject_teacher") {
+        // For subject teachers, return the classes they teach
+        classes = await firebaseStorage.getClassesByTeacherId(req.user?.id);
       } else {
-        classes = await firebaseStorage.getClassesByTeacherId(req.user.id);
+        classes = [];
       }
       res.json(classes);
     } catch (error) {
@@ -91,6 +133,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get a specific class with stats
   app.get("/api/classes/:classId", isAuthenticated, async (req, res) => {
     try {
+      // Check if user is authorized for this class
+      if (req.user?.role === 'class_teacher' && req.user?.assignedClassId !== req.params.classId) {
+        if (req.user?.role !== 'admin') {
+          return res.status(403).json({ message: "You don't have access to this class" });
+        }
+      }
+      
       const classWithStats = await firebaseStorage.getClassWithStats(req.params.classId);
       if (!classWithStats) {
         return res.status(404).json({ message: "Class not found" });
@@ -99,6 +148,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Failed to fetch class" });
+    }
+  });
+  
+  // Class teacher dashboard - get all students with submission stats for their class
+  app.get("/api/class-teacher-dashboard", isAuthenticated, async (req, res) => {
+    try {
+      // Only class teachers and admins can access this endpoint
+      if (req.user?.role !== 'class_teacher' && req.user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Get the assigned class ID
+      const classId = req.user?.role === 'class_teacher' 
+        ? req.user?.assignedClassId 
+        : req.query.classId as string;
+      
+      if (!classId) {
+        return res.status(400).json({ message: "Class ID is required" });
+      }
+      
+      // Get class details with stats
+      const classWithStats = await firebaseStorage.getClassWithStats(classId);
+      if (!classWithStats) {
+        return res.status(404).json({ message: "Class not found" });
+      }
+      
+      // Get students in the class
+      const students = await firebaseStorage.getStudentsByClassId(classId);
+      
+      // Get potential defaulters
+      const potentialDefaulters = await firebaseStorage.getPotentialDefaulters(classId);
+      
+      // Get subjects for this class
+      const subjects = await firebaseStorage.getSubjectsByClassId(classId);
+      
+      res.json({
+        class: classWithStats,
+        students,
+        subjects,
+        potentialDefaulters
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Failed to fetch class teacher dashboard data" });
     }
   });
 
@@ -120,6 +213,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all subjects for a class
   app.get("/api/classes/:classId/subjects", isAuthenticated, async (req, res) => {
     try {
+      // Check if user is authorized for this class
+      if (req.user?.role === 'class_teacher' && req.user?.assignedClassId !== req.params.classId) {
+        if (req.user?.role !== 'admin') {
+          return res.status(403).json({ message: "You don't have access to this class" });
+        }
+      }
+      
       const subjects = await firebaseStorage.getSubjectsByClassId(req.params.classId);
       res.json(subjects);
     } catch (error) {
@@ -132,15 +232,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/subjects", isAuthenticated, async (req, res) => {
     try {
       let subjects;
-      if (req.user.role === "admin") {
+      if (req.user?.role === "admin") {
         subjects = await firebaseStorage.getSubjects();
+      } else if (req.user?.role === "subject_teacher") {
+        subjects = await firebaseStorage.getSubjectsByTeacherId(req.user?.id);
+      } else if (req.user?.role === "class_teacher" && req.user?.assignedClassId) {
+        // For class teachers, get subjects for their assigned class
+        subjects = await firebaseStorage.getSubjectsByClassId(req.user.assignedClassId);
       } else {
-        subjects = await firebaseStorage.getSubjectsByTeacherId(req.user.id);
+        subjects = [];
       }
       res.json(subjects);
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Failed to fetch subjects" });
+    }
+  });
+  
+  // Subject teacher dashboard - get all classes and subjects with submission stats
+  app.get("/api/subject-teacher-dashboard", isAuthenticated, async (req, res) => {
+    try {
+      // Only subject teachers and admins can access this endpoint
+      if (req.user?.role !== 'subject_teacher' && req.user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Get the teacher ID
+      const teacherId = req.user?.role === 'subject_teacher'
+        ? req.user?.id
+        : req.query.teacherId as string;
+      
+      if (!teacherId) {
+        return res.status(400).json({ message: "Teacher ID is required" });
+      }
+      
+      // Get subjects taught by this teacher
+      const subjects = await firebaseStorage.getSubjectsByTeacherId(teacherId);
+      
+      // Get classes assigned to this teacher
+      const classes = await firebaseStorage.getClassesByTeacherId(teacherId);
+      
+      // Get active sessions
+      const activeSession = await firebaseStorage.getActiveSession();
+      
+      // For each subject, get active submission cycles for each class
+      const subjectsWithCycles = [];
+      
+      for (const subject of subjects) {
+        const classesForSubject = [];
+        
+        for (const classItem of classes) {
+          // Get active submission cycle for this subject and class
+          const activeCycle = await firebaseStorage.getActiveSubmissionCycle(subject.id, classItem.id);
+          
+          // Get students with submissions for this subject and class
+          const studentsWithSubmissions = await firebaseStorage.getStudentsWithSubmissions(
+            classItem.id,
+            subject.id,
+            activeCycle?.id
+          );
+          
+          // Calculate submission stats
+          const totalStudents = studentsWithSubmissions.length;
+          const submittedCount = studentsWithSubmissions.filter(s => 
+            s.submissions.some(sub => sub.status === 'submitted' || sub.status === 'returned')
+          ).length;
+          const returnedCount = studentsWithSubmissions.filter(s => 
+            s.submissions.some(sub => sub.status === 'returned')
+          ).length;
+          const missingCount = studentsWithSubmissions.filter(s => 
+            s.submissions.some(sub => sub.status === 'missing')
+          ).length;
+          
+          classesForSubject.push({
+            class: classItem,
+            activeCycle,
+            stats: {
+              totalStudents,
+              submittedCount,
+              returnedCount,
+              missingCount,
+              submissionRate: totalStudents > 0 ? (submittedCount / totalStudents) * 100 : 0
+            }
+          });
+        }
+        
+        subjectsWithCycles.push({
+          subject,
+          classes: classesForSubject
+        });
+      }
+      
+      res.json({
+        teacher: req.user,
+        activeSession,
+        subjects: subjectsWithCycles
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Failed to fetch subject teacher dashboard data" });
     }
   });
 
@@ -385,6 +575,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Students
   app.get("/api/classes/:classId/students", isAuthenticated, async (req, res) => {
     try {
+      // Check if user is authorized for this class
+      if (req.user?.role === 'class_teacher' && req.user?.assignedClassId !== req.params.classId) {
+        if (req.user?.role !== 'admin') {
+          return res.status(403).json({ message: "You don't have access to this class" });
+        }
+      }
+      
       const students = await firebaseStorage.getStudentsByClassId(req.params.classId);
       res.json(students);
     } catch (error) {
@@ -421,6 +618,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/students/:id", isAuthenticated, async (req, res) => {
     try {
+      // Only class teachers and admins can update students
+      if (req.user?.role !== 'class_teacher' && req.user?.role !== 'admin') {
+        return res.status(403).json({ message: "Only class teachers and admins can update students" });
+      }
+      
+      // If class teacher, check if student belongs to their class
+      if (req.user?.role === 'class_teacher' && req.user?.assignedClassId) {
+        const student = await firebaseStorage.getStudent(req.params.id);
+        if (!student) {
+          return res.status(404).json({ message: "Student not found" });
+        }
+        
+        if (student.classId !== req.user.assignedClassId) {
+          return res.status(403).json({ message: "You can only update students in your assigned class" });
+        }
+      }
+      
       // Don't allow changing scholar number
       if (req.body.scholarNumber) {
         delete req.body.scholarNumber;
@@ -436,6 +650,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/students/:id/change-class", isAuthenticated, async (req, res) => {
     try {
+      // Only admins can change a student's class (since this affects multiple classes)
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ message: "Only administrators can change a student's class" });
+      }
+      
       const { newClassId, reason } = req.body;
       if (!newClassId) {
         return res.status(400).json({ message: "New class ID is required" });
@@ -445,7 +664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.params.id,
         newClassId,
         reason,
-        req.user.id
+        req.user?.id
       );
       
       res.json(student);
@@ -457,6 +676,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/students/:id/class-history", isAuthenticated, async (req, res) => {
     try {
+      // Only admins and class teachers can view class history
+      if (req.user?.role !== 'admin' && req.user?.role !== 'class_teacher') {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // If class teacher, make sure the student is in their class
+      if (req.user?.role === 'class_teacher' && req.user?.assignedClassId) {
+        const student = await firebaseStorage.getStudent(req.params.id);
+        if (!student) {
+          return res.status(404).json({ message: "Student not found" });
+        }
+        
+        if (student.classId !== req.user.assignedClassId) {
+          return res.status(403).json({ message: "You can only view history for students in your assigned class" });
+        }
+      }
+      
       const history = await firebaseStorage.getStudentClassHistory(req.params.id);
       res.json(history);
     } catch (error) {
@@ -577,15 +813,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get potential defaulters
+  // Get potential defaulters with AI prediction
   app.get("/api/classes/:classId/defaulters", isAuthenticated, async (req, res) => {
     try {
       const threshold = req.query.threshold ? parseInt(req.query.threshold as string) : 2;
       
-      const defaulters = await firebaseStorage.getPotentialDefaulters(
-        req.params.classId,
-        threshold
-      );
+      // Get the class to verify access
+      const classData = await firebaseStorage.getClass(req.params.classId);
+      if (!classData) {
+        return res.status(404).json({ message: "Class not found" });
+      }
+      
+      // Verify permissions (Only admin, class teacher of this class, or a teacher with a subject in this class can view)
+      const isClassTeacher = req.user?.role === 'class_teacher' && req.user?.assignedClassId === req.params.classId;
+      const isAdmin = req.user?.role === 'admin';
+      
+      if (!isAdmin && !isClassTeacher) {
+        // For subject teachers, check if they teach any subject in this class
+        const userSubjects = await firebaseStorage.getSubjectsByTeacherId(req.user?.id || '');
+        const hasSubjectInClass = userSubjects.some(subject => 
+          subject.classIds && subject.classIds.includes(req.params.classId)
+        );
+        
+        if (!hasSubjectInClass) {
+          return res.status(403).json({ message: "You don't have permission to view defaulters for this class" });
+        }
+      }
+      
+      // Get students with submissions (includes history)
+      const studentsWithSubmissions = await firebaseStorage.getStudentsWithHistory(req.params.classId);
+      
+      // Import the defaulter prediction service
+      const { defaulterPredictionService } = await import('./defaulter-prediction');
+      
+      // Map data to the format expected by the prediction service
+      const studentHistories = studentsWithSubmissions.map(student => ({
+        studentId: student.id,
+        studentName: student.fullName, 
+        scholarNumber: student.scholarNumber,
+        submissions: student.submissions.map(sub => ({
+          studentId: student.id,
+          submissionId: sub.id,
+          status: sub.status,
+          submittedAt: sub.submittedAt ? sub.submittedAt.toDate() : undefined,
+          returnedAt: sub.returnedAt ? sub.returnedAt.toDate() : undefined,
+          dueDate: undefined, // Not used in our system
+          cycleId: sub.cycleId,
+          cycleStartDate: sub.date.toDate() // Use the submission date as cycleStartDate
+        })),
+        previousMissingCount: student.previousMissingCount || 0
+      }));
+      
+      // Use the prediction service to identify potential defaulters
+      const defaulters = defaulterPredictionService.predictDefaulters(studentHistories, threshold);
       
       res.json(defaulters);
     } catch (error) {

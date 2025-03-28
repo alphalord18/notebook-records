@@ -80,6 +80,7 @@ export interface IStorage {
   // Analytics
   getSubmissionAnalytics(classId: string, subjectId: string, startDate: Date, endDate: Date): Promise<any>;
   getPotentialDefaulters(classId: string, threshold?: number): Promise<StudentWithSubmission[]>;
+  getStudentsWithHistory(classId: string): Promise<Array<Student & { submissions: Submission[]; previousMissingCount: number; }>>;
 
   // Notification management
   getNotificationTemplate(id: string): Promise<NotificationTemplate | null>;

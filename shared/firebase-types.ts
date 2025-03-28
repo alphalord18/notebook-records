@@ -5,12 +5,14 @@ export interface User {
   username: string;
   password: string;
   fullName: string;
-  role: "teacher" | "admin";
+  role: "subject_teacher" | "class_teacher" | "admin";
   email?: string;
   phone?: string;
   avatarInitials: string;
   createdAt: Timestamp;
   lastLogin?: Timestamp;
+  assignedClassId?: string; // For class teachers
+  assignedSubjectId?: string; // For subject teachers
 }
 
 export interface AcademicSession {
@@ -24,7 +26,7 @@ export interface AcademicSession {
 export interface Class {
   id: string;
   name: string; // e.g., "7B"
-  teacherId: string;
+  classTeacherId: string; // Reference to the class teacher
   sessionId: string; // Reference to academic session
   createdAt: Timestamp;
 }
@@ -32,10 +34,26 @@ export interface Class {
 export interface Subject {
   id: string;
   name: string; // e.g., "Science"
-  teacherId: string;
-  classId: string;
+  teacherId: string; // Subject teacher ID
   notebookColor: string; // Color code 
   submissionFrequency: "weekly" | "bi-weekly" | "monthly";
+}
+
+// Map subjects to multiple classes
+export interface SubjectClassMapping {
+  id: string;
+  subjectId: string;
+  classId: string;
+  createdAt: Timestamp;
+}
+
+// Map students to multiple subjects
+export interface StudentSubjectMapping {
+  id: string;
+  studentId: string;
+  subjectId: string;
+  classId: string;
+  createdAt: Timestamp;
 }
 
 export interface Student {
@@ -126,6 +144,11 @@ export interface StudentWithSubmission extends Student {
   predictedDefaulter?: boolean;
 }
 
+export interface StudentWithHistory extends Student {
+  submissions: Submission[];
+  previousMissingCount: number;
+}
+
 export interface SubjectWithStats extends Subject {
   submissionRate: number;
   totalStudents: number;
@@ -146,10 +169,12 @@ export interface UserInput {
   username: string;
   password: string;
   fullName: string;
-  role: "teacher" | "admin";
+  role: "subject_teacher" | "class_teacher" | "admin";
   email?: string;
   phone?: string;
   avatarInitials?: string;
+  assignedClassId?: string; // For class teachers
+  assignedSubjectId?: string; // For subject teachers
 }
 
 export interface StudentInput {
@@ -166,16 +191,26 @@ export interface StudentInput {
 
 export interface ClassInput {
   name: string;
-  teacherId: string;
+  classTeacherId: string;
   sessionId: string;
 }
 
 export interface SubjectInput {
   name: string;
   teacherId: string;
-  classId: string;
   notebookColor?: string;
   submissionFrequency?: "weekly" | "bi-weekly" | "monthly";
+}
+
+export interface SubjectClassMappingInput {
+  subjectId: string;
+  classId: string;
+}
+
+export interface StudentSubjectMappingInput {
+  studentId: string;
+  subjectId: string;
+  classId: string;
 }
 
 export interface SubmissionCycleInput {

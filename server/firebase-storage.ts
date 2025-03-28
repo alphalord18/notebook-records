@@ -1279,6 +1279,108 @@ export class FirebaseStorage implements IStorage {
     
     return history;
   }
+  
+  /**
+   * Gets students in a class with their submission history across all subjects
+   * This includes previous submissions and not just active cycles
+   */
+  async getStudentsWithHistory(
+    classId: string
+  ): Promise<Array<Student & { 
+    submissions: Submission[]; 
+    previousMissingCount: number;
+  }>> {
+    try {
+      // Get all students in this class
+      const students = await this.getStudentsByClassId(classId);
+      if (!students.length) return [];
+
+      // Get all subjects for this class
+      const subjects = await this.getSubjectsByClassId(classId);
+      if (!subjects.length) return [];
+
+      const result = [];
+
+      for (const student of students) {
+        // Get all submission history for this student across all subjects
+        const allSubmissions: Submission[] = [];
+        let previousMissingCount = 0;
+        
+        for (const subject of subjects) {
+          // Get all submissions for this student and subject
+          const studentSubmissions = await this.getSubmissionsForStudentAndSubject(student.id, subject.id);
+          
+          // Count previous missing submissions (in completed cycles)
+          const cycles = await this.getSubmissionCyclesBySubject(subject.id);
+          const completedCycles = cycles.filter(cycle => cycle.status === 'completed');
+          
+          for (const cycle of completedCycles) {
+            const hasSubmissionForCycle = studentSubmissions.some(s => s.cycleId === cycle.id);
+            
+            if (!hasSubmissionForCycle) {
+              previousMissingCount++;
+              
+              // Create a "missing" submission record for history
+              allSubmissions.push({
+                id: `missing-${student.id}-${subject.id}-${cycle.id}`,
+                studentId: student.id,
+                subjectId: subject.id,
+                subjectName: subject.name,
+                classId: classId,
+                cycleId: cycle.id,
+                cycleName: cycle.name,
+                status: 'missing',
+                notificationSent: false,
+                cycleStartDate: cycle.startDate,
+                date: cycle.startDate, // Required field
+                followUpRequired: false, // Required field
+                consecutiveMisses: 0 // Required field
+              } as Submission);
+            }
+          }
+          
+          // Add existing submissions
+          allSubmissions.push(...studentSubmissions);
+          
+          // Check current active cycle
+          const activeCycle = await this.getActiveSubmissionCycle(subject.id, classId);
+          if (activeCycle) {
+            const hasSubmittedForActiveCycle = studentSubmissions.some(s => s.cycleId === activeCycle.id);
+            
+            if (!hasSubmittedForActiveCycle) {
+              // Create a "missing" submission record for active cycle
+              allSubmissions.push({
+                id: `missing-active-${student.id}-${subject.id}-${activeCycle.id}`,
+                studentId: student.id,
+                subjectId: subject.id,
+                subjectName: subject.name,
+                classId: classId,
+                cycleId: activeCycle.id,
+                cycleName: activeCycle.name,
+                status: 'missing',
+                notificationSent: false,
+                cycleStartDate: activeCycle.startDate,
+                date: activeCycle.startDate, // Required field
+                followUpRequired: false, // Required field
+                consecutiveMisses: 0 // Required field
+              } as Submission);
+            }
+          }
+        }
+        
+        result.push({
+          ...student,
+          submissions: allSubmissions,
+          previousMissingCount
+        });
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Error getting students with history:', error);
+      throw error;
+    }
+  }
 }
 
 export const storage = new FirebaseStorage();
