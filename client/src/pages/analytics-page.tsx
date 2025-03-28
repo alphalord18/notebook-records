@@ -57,9 +57,9 @@ export default function AnalyticsPage() {
     }>;
   }
 
-  // Fetch analytics data
+  // Fetch analytics data with safe default values
   const {
-    data: analytics = { byStatus: { submitted: 0, returned: 0, missing: 0 }, frequentDefaulters: [] },
+    data: analytics,
     isLoading,
   } = useQuery<AnalyticsData>({
     queryKey: [
@@ -71,12 +71,22 @@ export default function AnalyticsPage() {
     ],
     enabled: !!selectedClassId && !!selectedSubjectId,
   });
+  
+  // Ensure analytics has proper default values with complete structure
+  const safeAnalytics = {
+    byStatus: {
+      submitted: analytics?.byStatus?.submitted ?? 0,
+      returned: analytics?.byStatus?.returned ?? 0,
+      missing: analytics?.byStatus?.missing ?? 0
+    },
+    frequentDefaulters: analytics?.frequentDefaulters ?? []
+  };
 
-  // Prepare data for charts
+  // Prepare data for charts with safe values
   const submissionStatusData = [
-    { name: "Submitted", value: analytics.byStatus.submitted, color: "#10b981" },
-    { name: "Returned", value: analytics.byStatus.returned, color: "#3b82f6" },
-    { name: "Missing", value: analytics.byStatus.missing, color: "#ef4444" },
+    { name: "Submitted", value: safeAnalytics.byStatus.submitted ?? 0, color: "#10b981" },
+    { name: "Returned", value: safeAnalytics.byStatus.returned ?? 0, color: "#3b82f6" },
+    { name: "Missing", value: safeAnalytics.byStatus.missing ?? 0, color: "#ef4444" },
   ];
 
   // Weekly trend data (mocked for now - would come from API in real app)
@@ -278,27 +288,27 @@ export default function AnalyticsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {analytics.frequentDefaulters.map((item, index) => (
+                    {safeAnalytics.frequentDefaulters.map((item, index) => (
                       <div key={index} className="flex items-center justify-between">
                         <div className="flex items-center">
                           <StudentAvatar
-                            initials={item.student.avatarInitials}
+                            initials={item?.student?.avatarInitials || "??"}
                             size="sm"
                           />
                           <div className="ml-3">
-                            <div className="text-sm font-medium">{item.student.fullName}</div>
-                            <div className="text-xs text-gray-500">{item.student.rollNumber}</div>
+                            <div className="text-sm font-medium">{item?.student?.fullName || "Unknown Student"}</div>
+                            <div className="text-xs text-gray-500">{item?.student?.rollNumber || "No ID"}</div>
                           </div>
                         </div>
                         <div className="flex items-center">
                           <div className="ml-2 text-sm font-medium py-1 px-2 bg-red-100 text-red-800 rounded-full">
-                            {item.count} missed
+                            {item?.count ?? 0} missed
                           </div>
                         </div>
                       </div>
                     ))}
 
-                    {analytics.frequentDefaulters.length === 0 && (
+                    {safeAnalytics.frequentDefaulters.length === 0 && (
                       <div className="text-center py-8 text-gray-500">
                         No frequent defaulters found
                       </div>

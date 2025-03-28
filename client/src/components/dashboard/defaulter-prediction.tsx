@@ -31,7 +31,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 
 interface DefaulterPredictionProps {
-  classId: string | number;
+  classId: string | number | null;
 }
 
 export function DefaulterPredictionCard({ classId }: DefaulterPredictionProps) {
