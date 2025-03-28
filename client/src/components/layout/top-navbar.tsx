@@ -36,61 +36,49 @@ export function TopNavbar({ onMenuButtonClick, user, className }: TopNavbarProps
           >
             <Menu className="h-6 w-6" />
           </button>
-          <Link href="/">
-            <a className="flex items-center space-x-2">
-              <span className="text-primary-600 text-xl font-bold">NoteTrack</span>
-            </a>
+          <Link href="/" className="flex items-center space-x-2">
+            <span className="text-primary-600 text-xl font-bold">NoteTrack</span>
           </Link>
         </div>
         
         {/* Navigation links */}
         <div className="hidden md:flex items-center space-x-4">
-          <Link href="/">
-            <a className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+          <Link href="/" className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
               location === "/" ? "text-primary bg-primary/10" : "text-gray-600 hover:text-primary hover:bg-gray-50"
             }`}>
-              <LayoutDashboard className="mr-2 h-4 w-4" />
-              Dashboard
-            </a>
+            <LayoutDashboard className="mr-2 h-4 w-4" />
+            Dashboard
           </Link>
           
-          <Link href="/analytics">
-            <a className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+          <Link href="/analytics" className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
               location === "/analytics" ? "text-primary bg-primary/10" : "text-gray-600 hover:text-primary hover:bg-gray-50"
             }`}>
-              <BarChart className="mr-2 h-4 w-4" />
-              Analytics
-            </a>
+            <BarChart className="mr-2 h-4 w-4" />
+            Analytics
           </Link>
           
           {/* Admin-only navigation */}
           {user.role === "admin" && (
             <>
-              <Link href="/admin">
-                <a className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+              <Link href="/admin" className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
                   location === "/admin" ? "text-primary bg-primary/10" : "text-gray-600 hover:text-primary hover:bg-gray-50"
                 }`}>
-                  <ShieldCheck className="mr-2 h-4 w-4" />
-                  Admin Panel
-                </a>
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Admin Panel
               </Link>
               
-              <Link href="/admin/user-management">
-                <a className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+              <Link href="/admin/user-management" className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
                   location === "/admin/user-management" ? "text-primary bg-primary/10" : "text-gray-600 hover:text-primary hover:bg-gray-50"
                 }`}>
-                  <Users className="mr-2 h-4 w-4" />
-                  Users
-                </a>
+                <Users className="mr-2 h-4 w-4" />
+                Users
               </Link>
               
-              <Link href="/admin/class-management">
-                <a className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+              <Link href="/admin/class-management" className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
                   location === "/admin/class-management" ? "text-primary bg-primary/10" : "text-gray-600 hover:text-primary hover:bg-gray-50"
                 }`}>
-                  <School className="mr-2 h-4 w-4" />
-                  Classes
-                </a>
+                <School className="mr-2 h-4 w-4" />
+                Classes
               </Link>
             </>
           )}
@@ -124,20 +112,16 @@ export function TopNavbar({ onMenuButtonClick, user, className }: TopNavbarProps
               {/* Mobile navigation links */}
               <div className="md:hidden">
                 <DropdownMenuItem asChild>
-                  <Link href="/">
-                    <a className="w-full flex items-center">
-                      <LayoutDashboard className="mr-2 h-4 w-4" />
-                      Dashboard
-                    </a>
+                  <Link href="/" className="w-full flex items-center">
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    Dashboard
                   </Link>
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem asChild>
-                  <Link href="/analytics">
-                    <a className="w-full flex items-center">
-                      <BarChart className="mr-2 h-4 w-4" />
-                      Analytics
-                    </a>
+                  <Link href="/analytics" className="w-full flex items-center">
+                    <BarChart className="mr-2 h-4 w-4" />
+                    Analytics
                   </Link>
                 </DropdownMenuItem>
                 
@@ -145,29 +129,23 @@ export function TopNavbar({ onMenuButtonClick, user, className }: TopNavbarProps
                 {user.role === "admin" && (
                   <>
                     <DropdownMenuItem asChild>
-                      <Link href="/admin">
-                        <a className="w-full flex items-center">
-                          <ShieldCheck className="mr-2 h-4 w-4" />
-                          Admin Panel
-                        </a>
+                      <Link href="/admin" className="w-full flex items-center">
+                        <ShieldCheck className="mr-2 h-4 w-4" />
+                        Admin Panel
                       </Link>
                     </DropdownMenuItem>
                     
                     <DropdownMenuItem asChild>
-                      <Link href="/admin/user-management">
-                        <a className="w-full flex items-center">
-                          <Users className="mr-2 h-4 w-4" />
-                          User Management
-                        </a>
+                      <Link href="/admin/user-management" className="w-full flex items-center">
+                        <Users className="mr-2 h-4 w-4" />
+                        User Management
                       </Link>
                     </DropdownMenuItem>
                     
                     <DropdownMenuItem asChild>
-                      <Link href="/admin/class-management">
-                        <a className="w-full flex items-center">
-                          <School className="mr-2 h-4 w-4" />
-                          Class Management
-                        </a>
+                      <Link href="/admin/class-management" className="w-full flex items-center">
+                        <School className="mr-2 h-4 w-4" />
+                        Class Management
                       </Link>
                     </DropdownMenuItem>
                   </>
@@ -177,11 +155,9 @@ export function TopNavbar({ onMenuButtonClick, user, className }: TopNavbarProps
               </div>
               
               <DropdownMenuItem asChild>
-                <Link href="/settings">
-                  <a className="w-full flex items-center">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </a>
+                <Link href="/settings" className="w-full flex items-center">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
                 </Link>
               </DropdownMenuItem>
               

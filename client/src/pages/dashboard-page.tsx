@@ -31,8 +31,8 @@ export default function DashboardPage() {
 
   // Set first class as default when classes are loaded
   useEffect(() => {
-    if (classes.length > 0 && !selectedClassId) {
-      setSelectedClassId(classes[0].id);
+    if (classes && classes.length > 0 && !selectedClassId) {
+      setSelectedClassId(classes[0]?.id);
     }
   }, [classes, selectedClassId]);
 
@@ -44,8 +44,8 @@ export default function DashboardPage() {
 
   // Set first subject as default when subjects are loaded
   useEffect(() => {
-    if (subjects.length > 0 && !selectedSubjectId) {
-      setSelectedSubjectId(subjects[0].id);
+    if (subjects && subjects.length > 0 && !selectedSubjectId) {
+      setSelectedSubjectId(subjects[0]?.id);
     }
   }, [subjects, selectedSubjectId]);
 
@@ -73,12 +73,12 @@ export default function DashboardPage() {
     // Apply search filter
     const matchesSearch =
       !searchQuery ||
-      student.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.rollNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.parentName.toLowerCase().includes(searchQuery.toLowerCase());
+      student?.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student?.rollNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student?.parentName?.toLowerCase().includes(searchQuery.toLowerCase());
 
     // Apply status filter
-    const submission = student.submissions[0];
+    const submission = student?.submissions?.[0];
     const matchesStatus =
       statusFilter === "all" ||
       (submission && submission.status === statusFilter);
@@ -87,16 +87,16 @@ export default function DashboardPage() {
   });
 
   // Calculate stats
-  const totalStudents = studentsWithSubmissions.length;
-  const submittedCount = studentsWithSubmissions.filter(
-    (s) => s.submissions[0]?.status === "submitted" || s.submissions[0]?.status === "returned"
-  ).length;
-  const missingCount = studentsWithSubmissions.filter(
-    (s) => s.submissions[0]?.status === "missing"
-  ).length;
-  const pendingReturnCount = studentsWithSubmissions.filter(
-    (s) => s.submissions[0]?.status === "submitted"
-  ).length;
+  const totalStudents = studentsWithSubmissions?.length || 0;
+  const submittedCount = studentsWithSubmissions?.filter(
+    (s) => s?.submissions?.[0]?.status === "submitted" || s?.submissions?.[0]?.status === "returned"
+  )?.length || 0;
+  const missingCount = studentsWithSubmissions?.filter(
+    (s) => s?.submissions?.[0]?.status === "missing"
+  )?.length || 0;
+  const pendingReturnCount = studentsWithSubmissions?.filter(
+    (s) => s?.submissions?.[0]?.status === "submitted"
+  )?.length || 0;
 
   // Mark submission as submitted
   const markSubmittedMutation = useMutation({
@@ -215,13 +215,13 @@ export default function DashboardPage() {
   const currentClass = classes.find((c) => c.id === selectedClassId);
 
   // Get preview data for SMS
-  const missingStudents = studentsWithSubmissions.filter(
-    (s) => s.submissions[0]?.status === "missing"
-  );
-  const previewData = missingStudents.length > 0
+  const missingStudents = studentsWithSubmissions?.filter(
+    (s) => s?.submissions?.[0]?.status === "missing"
+  ) || [];
+  const previewData = missingStudents?.length > 0
     ? {
-        parentName: missingStudents[0].parentName,
-        studentName: missingStudents[0].fullName,
+        parentName: missingStudents[0]?.parentName || "Parent",
+        studentName: missingStudents[0]?.fullName || "Student",
         subject: currentSubject?.name || "Science",
         nextDate: format(addDays(new Date(), 1), "MMMM d"),
       }
