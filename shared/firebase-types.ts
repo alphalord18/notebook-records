@@ -3,6 +3,7 @@ import { Timestamp } from 'firebase/firestore';
 export interface User {
   id: string;
   username: string;
+  password: string;
   fullName: string;
   role: "teacher" | "admin";
   email?: string;
@@ -10,7 +11,6 @@ export interface User {
   avatarInitials: string;
   createdAt: Timestamp;
   lastLogin?: Timestamp;
-  authUid?: string; // Firebase Auth UID
 }
 
 export interface AcademicSession {
@@ -149,6 +149,7 @@ export interface UserInput {
   role: "teacher" | "admin";
   email?: string;
   phone?: string;
+  avatarInitials?: string;
 }
 
 export interface StudentInput {
