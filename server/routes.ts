@@ -61,7 +61,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Academic Sessions
   app.get("/api/sessions", isAuthenticated, async (req, res) => {
     try {
-      const sessions = await firebaseStorage.getSessions();
+      const sessions = await storage.getSessions();
       res.json(sessions);
     } catch (error) {
       console.error(error);
@@ -71,7 +71,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/sessions/active", isAuthenticated, async (req, res) => {
     try {
-      const session = await firebaseStorage.getActiveSession();
+      const session = await storage.getActiveSession();
       if (!session) {
         return res.status(404).json({ message: "No active session found" });
       }
@@ -88,7 +88,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Only admins can create sessions" });
       }
       
-      const session = await firebaseStorage.createSession(req.body);
+      const session = await storage.createSession(req.body);
       res.status(201).json(session);
     } catch (error) {
       console.error(error);
@@ -102,7 +102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Only admins can activate sessions" });
       }
       
-      const session = await firebaseStorage.setActiveSession(req.params.id);
+      const session = await storage.setActiveSession(req.params.id);
       res.json(session);
     } catch (error) {
       console.error(error);
@@ -115,14 +115,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       let classes;
       if (req.user?.role === "admin") {
-        classes = await firebaseStorage.getClasses();
+        classes = await storage.getClasses();
       } else if (req.user?.role === "class_teacher" && req.user?.assignedClassId) {
         // For class teachers, only return their assigned class
-        const assignedClass = await firebaseStorage.getClass(req.user.assignedClassId);
+        const assignedClass = await storage.getClass(req.user.assignedClassId);
         classes = assignedClass ? [assignedClass] : [];
       } else if (req.user?.role === "subject_teacher") {
         // For subject teachers, return the classes they teach
-        classes = await firebaseStorage.getClassesByTeacherId(req.user?.id);
+        classes = await storage.getClassesByTeacherId(req.user?.id);
       } else {
         classes = [];
       }
@@ -143,7 +143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      const classWithStats = await firebaseStorage.getClassWithStats(req.params.classId);
+      const classWithStats = await storage.getClassWithStats(req.params.classId);
       if (!classWithStats) {
         return res.status(404).json({ message: "Class not found" });
       }
@@ -172,19 +172,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Get class details with stats
-      const classWithStats = await firebaseStorage.getClassWithStats(classId);
+      const classWithStats = await storage.getClassWithStats(classId);
       if (!classWithStats) {
         return res.status(404).json({ message: "Class not found" });
       }
       
       // Get students in the class
-      const students = await firebaseStorage.getStudentsByClassId(classId);
+      const students = await storage.getStudentsByClassId(classId);
       
       // Get potential defaulters
-      const potentialDefaulters = await firebaseStorage.getPotentialDefaulters(classId);
+      const potentialDefaulters = await storage.getPotentialDefaulters(classId);
       
       // Get subjects for this class
-      const subjects = await firebaseStorage.getSubjectsByClassId(classId);
+      const subjects = await storage.getSubjectsByClassId(classId);
       
       res.json({
         class: classWithStats,
@@ -205,7 +205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "You can only create classes assigned to yourself" });
       }
       
-      const newClass = await firebaseStorage.createClass(req.body);
+      const newClass = await storage.createClass(req.body);
       res.status(201).json(newClass);
     } catch (error) {
       console.error(error);
@@ -223,7 +223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      const subjects = await firebaseStorage.getSubjectsByClassId(req.params.classId);
+      const subjects = await storage.getSubjectsByClassId(req.params.classId);
       res.json(subjects);
     } catch (error) {
       console.error(error);
@@ -236,12 +236,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       let subjects;
       if (req.user?.role === "admin") {
-        subjects = await firebaseStorage.getSubjects();
+        subjects = await storage.getSubjects();
       } else if (req.user?.role === "subject_teacher") {
-        subjects = await firebaseStorage.getSubjectsByTeacherId(req.user?.id);
+        subjects = await storage.getSubjectsByTeacherId(req.user?.id);
       } else if (req.user?.role === "class_teacher" && req.user?.assignedClassId) {
         // For class teachers, get subjects for their assigned class
-        subjects = await firebaseStorage.getSubjectsByClassId(req.user.assignedClassId);
+        subjects = await storage.getSubjectsByClassId(req.user.assignedClassId);
       } else {
         subjects = [];
       }
@@ -270,13 +270,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Get subjects taught by this teacher
-      const subjects = await firebaseStorage.getSubjectsByTeacherId(teacherId);
+      const subjects = await storage.getSubjectsByTeacherId(teacherId);
       
       // Get classes assigned to this teacher
-      const classes = await firebaseStorage.getClassesByTeacherId(teacherId);
+      const classes = await storage.getClassesByTeacherId(teacherId);
       
       // Get active sessions
-      const activeSession = await firebaseStorage.getActiveSession();
+      const activeSession = await storage.getActiveSession();
       
       // For each subject, get active submission cycles for each class
       const subjectsWithCycles = [];
@@ -286,10 +286,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         for (const classItem of classes) {
           // Get active submission cycle for this subject and class
-          const activeCycle = await firebaseStorage.getActiveSubmissionCycle(subject.id, classItem.id);
+          const activeCycle = await storage.getActiveSubmissionCycle(subject.id, classItem.id);
           
           // Get students with submissions for this subject and class
-          const studentsWithSubmissions = await firebaseStorage.getStudentsWithSubmissions(
+          const studentsWithSubmissions = await storage.getStudentsWithSubmissions(
             classItem.id,
             subject.id,
             activeCycle?.id
@@ -344,7 +344,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "You can only create subjects assigned to yourself" });
       }
       
-      const newSubject = await firebaseStorage.createSubject(req.body);
+      const newSubject = await storage.createSubject(req.body);
       res.status(201).json(newSubject);
     } catch (error) {
       console.error(error);
@@ -357,7 +357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Check if cycleId is provided as a query parameter
       const { cycleId } = req.query;
-      const subjectWithStats = await firebaseStorage.getSubjectWithStats(
+      const subjectWithStats = await storage.getSubjectWithStats(
         req.params.subjectId, 
         cycleId as string | undefined
       );
@@ -379,7 +379,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if cycleId query parameter is provided
       const { cycleId } = req.query;
       
-      const studentsWithSubmissions = await firebaseStorage.getStudentsWithSubmissions(
+      const studentsWithSubmissions = await storage.getStudentsWithSubmissions(
         req.params.classId, 
         req.params.subjectId,
         cycleId as string | undefined
@@ -398,7 +398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if cycleId query parameter is provided
       const { cycleId } = req.query;
       
-      const submissions = await firebaseStorage.getSubmissionsForClassAndSubject(
+      const submissions = await storage.getSubmissionsForClassAndSubject(
         req.params.classId,
         req.params.subjectId,
         cycleId as string | undefined
@@ -414,7 +414,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Submission cycles
   app.get("/api/subjects/:subjectId/cycles", isAuthenticated, async (req, res) => {
     try {
-      const cycles = await firebaseStorage.getSubmissionCyclesBySubject(req.params.subjectId);
+      const cycles = await storage.getSubmissionCyclesBySubject(req.params.subjectId);
       res.json(cycles);
     } catch (error) {
       console.error(error);
@@ -424,7 +424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/subjects/:subjectId/classes/:classId/active-cycle", isAuthenticated, async (req, res) => {
     try {
-      const cycle = await firebaseStorage.getActiveSubmissionCycle(
+      const cycle = await storage.getActiveSubmissionCycle(
         req.params.subjectId,
         req.params.classId
       );
@@ -443,7 +443,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/cycles", isAuthenticated, async (req, res) => {
     try {
       // Get the subject to check if the teacher has permission
-      const subject = await firebaseStorage.getSubject(req.body.subjectId);
+      const subject = await storage.getSubject(req.body.subjectId);
       if (!subject) {
         return res.status(404).json({ message: "Subject not found" });
       }
@@ -462,7 +462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.body.endDate = new Date(req.body.endDate);
       }
       
-      const cycle = await firebaseStorage.createSubmissionCycle({
+      const cycle = await storage.createSubmissionCycle({
         ...req.body,
         createdBy: req.user.id
       });
@@ -476,13 +476,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/cycles/:id/complete", isAuthenticated, async (req, res) => {
     try {
-      const cycle = await firebaseStorage.getSubmissionCycle(req.params.id);
+      const cycle = await storage.getSubmissionCycle(req.params.id);
       if (!cycle) {
         return res.status(404).json({ message: "Submission cycle not found" });
       }
       
       // Get the subject to check if the teacher has permission
-      const subject = await firebaseStorage.getSubject(cycle.subjectId);
+      const subject = await storage.getSubject(cycle.subjectId);
       if (!subject) {
         return res.status(404).json({ message: "Subject not found" });
       }
@@ -492,7 +492,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "You can only complete cycles for your own subjects" });
       }
       
-      const completedCycle = await firebaseStorage.completeSubmissionCycle(req.params.id);
+      const completedCycle = await storage.completeSubmissionCycle(req.params.id);
       res.json(completedCycle);
     } catch (error) {
       console.error(error);
@@ -524,7 +524,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         followUpRequired: req.body.followUpRequired
       };
       
-      const submission = await firebaseStorage.createSubmission(submissionData);
+      const submission = await storage.createSubmission(submissionData);
       res.status(201).json(submission);
     } catch (error) {
       console.error(error);
@@ -540,7 +540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid status" });
       }
 
-      const updatedSubmission = await firebaseStorage.updateSubmission(req.params.id, {
+      const updatedSubmission = await storage.updateSubmission(req.params.id, {
         status,
         notes,
         followUpRequired
@@ -556,7 +556,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mark a submission as returned
   app.post("/api/submissions/:id/mark-returned", isAuthenticated, async (req, res) => {
     try {
-      const updatedSubmission = await firebaseStorage.markSubmissionAsReturned(req.params.id);
+      const updatedSubmission = await storage.markSubmissionAsReturned(req.params.id);
       res.json(updatedSubmission);
     } catch (error) {
       console.error(error);
@@ -567,7 +567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mark all submissions as returned for a cycle
   app.post("/api/cycles/:cycleId/mark-all-returned", isAuthenticated, async (req, res) => {
     try {
-      const count = await firebaseStorage.markAllSubmissionsAsReturned(req.params.cycleId);
+      const count = await storage.markAllSubmissionsAsReturned(req.params.cycleId);
       res.json({ message: `${count} submissions marked as returned` });
     } catch (error) {
       console.error(error);
@@ -585,7 +585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      const students = await firebaseStorage.getStudentsByClassId(req.params.classId);
+      const students = await storage.getStudentsByClassId(req.params.classId);
       res.json(students);
     } catch (error) {
       console.error(error);
@@ -608,7 +608,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Scholar number must be 5 digits" });
       }
       
-      const student = await firebaseStorage.createStudent(req.body);
+      const student = await storage.createStudent(req.body);
       res.status(201).json(student);
     } catch (error) {
       console.error(error);
@@ -628,7 +628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If class teacher, check if student belongs to their class
       if (req.user?.role === 'class_teacher' && req.user?.assignedClassId) {
-        const student = await firebaseStorage.getStudent(req.params.id);
+        const student = await storage.getStudent(req.params.id);
         if (!student) {
           return res.status(404).json({ message: "Student not found" });
         }
@@ -643,7 +643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         delete req.body.scholarNumber;
       }
       
-      const student = await firebaseStorage.updateStudent(req.params.id, req.body);
+      const student = await storage.updateStudent(req.params.id, req.body);
       res.json(student);
     } catch (error) {
       console.error(error);
@@ -663,7 +663,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "New class ID is required" });
       }
       
-      const student = await firebaseStorage.changeStudentClass(
+      const student = await storage.changeStudentClass(
         req.params.id,
         newClassId,
         reason,
@@ -686,7 +686,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If class teacher, make sure the student is in their class
       if (req.user?.role === 'class_teacher' && req.user?.assignedClassId) {
-        const student = await firebaseStorage.getStudent(req.params.id);
+        const student = await storage.getStudent(req.params.id);
         if (!student) {
           return res.status(404).json({ message: "Student not found" });
         }
@@ -696,7 +696,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      const history = await firebaseStorage.getStudentClassHistory(req.params.id);
+      const history = await storage.getStudentClassHistory(req.params.id);
       res.json(history);
     } catch (error) {
       console.error(error);
@@ -711,7 +711,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { cycleId, templateId } = req.body;
       
       // Get subject details
-      const subject = await firebaseStorage.getSubject(req.params.subjectId);
+      const subject = await storage.getSubject(req.params.subjectId);
       if (!subject) {
         return res.status(404).json({ message: "Subject not found" });
       }
@@ -719,9 +719,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get notification template
       let template;
       if (templateId) {
-        template = await firebaseStorage.getNotificationTemplate(templateId);
+        template = await storage.getNotificationTemplate(templateId);
       } else {
-        template = await firebaseStorage.getNotificationTemplateByType("missing");
+        template = await storage.getNotificationTemplateByType("missing");
       }
       
       if (!template) {
@@ -729,7 +729,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get all students with missing submissions
-      const studentsWithSubmissions = await firebaseStorage.getStudentsWithSubmissions(
+      const studentsWithSubmissions = await storage.getStudentsWithSubmissions(
         req.params.classId, 
         req.params.subjectId,
         cycleId
@@ -747,7 +747,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const submission = student.submissions.find(sub => sub.status === "missing");
         if (submission) {
           // Update submission to mark notification as sent
-          await firebaseStorage.updateSubmission(submission.id, { 
+          await storage.updateSubmission(submission.id, { 
             notificationSent: true,
             notificationSentAt: new Date()
           });
@@ -759,7 +759,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           messageContent = messageContent.replace("{CLASS_NAME}", "Class"); // Need to fetch class name
           
           // Create notification history record
-          const notification = await firebaseStorage.createNotificationHistory({
+          const notification = await storage.createNotificationHistory({
             studentId: student.id,
             submissionId: submission.id,
             messageType: "sms",
@@ -802,7 +802,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const analytics = await firebaseStorage.getSubmissionAnalytics(
+      const analytics = await storage.getSubmissionAnalytics(
         req.params.classId, 
         req.params.subjectId, 
         startDate, 
@@ -822,7 +822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const threshold = req.query.threshold ? parseInt(req.query.threshold as string) : 2;
       
       // Get the class to verify access
-      const classData = await firebaseStorage.getClass(req.params.classId);
+      const classData = await storage.getClass(req.params.classId);
       if (!classData) {
         return res.status(404).json({ message: "Class not found" });
       }
@@ -833,7 +833,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!isAdmin && !isClassTeacher) {
         // For subject teachers, check if they teach any subject in this class
-        const userSubjects = await firebaseStorage.getSubjectsByTeacherId(req.user?.id || '');
+        const userSubjects = await storage.getSubjectsByTeacherId(req.user?.id || '');
         const hasSubjectInClass = userSubjects.some(subject => 
           subject.classIds && subject.classIds.includes(req.params.classId)
         );
@@ -844,7 +844,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Get students with submissions (includes history)
-      const studentsWithSubmissions = await firebaseStorage.getStudentsWithHistory(req.params.classId);
+      const studentsWithSubmissions = await storage.getStudentsWithHistory(req.params.classId);
       
       // Import the defaulter prediction service
       const { defaulterPredictionService } = await import('./defaulter-prediction');
@@ -880,7 +880,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Notification templates
   app.get("/api/notification-templates", isAuthenticated, async (req, res) => {
     try {
-      const templates = await firebaseStorage.getNotificationTemplates();
+      const templates = await storage.getNotificationTemplates();
       res.json(templates);
     } catch (error) {
       console.error(error);

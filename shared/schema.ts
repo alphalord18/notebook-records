@@ -239,7 +239,7 @@ export interface User {
   username: string;
   password: string;
   fullName: string;
-  role: 'admin' | 'teacher' | 'class-teacher';
+  role: 'admin' | 'class_teacher' | 'subject_teacher';
   avatarInitials: string;
   email?: string;
   phone?: string;
@@ -253,7 +253,8 @@ export interface UserInput {
   username: string;
   password: string;
   fullName: string;
-  role: 'admin' | 'teacher' | 'class-teacher';
+  role: 'admin' | 'class_teacher' | 'subject_teacher';
+  assignedClassId?: string;
   email?: string;
   phone?: string;
 }
