@@ -234,6 +234,7 @@ export class FirebaseStorage implements IStorage {
       
       const newUser: Omit<User, 'id'> = {
         username: userData.username,
+        password: userData.password, // Include the password!
         fullName: userData.fullName,
         role: userData.role,
         email: userData.email,

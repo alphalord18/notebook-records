@@ -103,7 +103,8 @@ export default function AuthPage() {
               <AlertDescription className="text-sm">
                 <p className="font-medium mb-2">Test Credentials:</p>
                 <p>Admin: <span className="font-medium">admin</span> / <span className="font-medium">admin123</span></p>
-                <p>Teacher: <span className="font-medium">teacher</span> / <span className="font-medium">teacher123</span></p>
+                <p>Subject Teacher: <span className="font-medium">subject</span> / <span className="font-medium">subject123</span></p>
+                <p>Class Teacher: <span className="font-medium">class</span> / <span className="font-medium">class123</span></p>
               </AlertDescription>
             </Alert>
             
