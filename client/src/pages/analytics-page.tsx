@@ -9,37 +9,73 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { StudentAvatar } from "@/components/ui/student-avatar";
 import { BarChart3, BrainCircuit, Loader2, AlertTriangle, TrendingUp } from "lucide-react";
 import { DefaulterPredictionCard } from "@/components/dashboard/defaulter-prediction";
+import { useAuth } from "@/hooks/use-auth";
 
 const COLORS = ['#3b82f6', '#10b981', '#ef4444', '#f59e0b'];
 
 export default function AnalyticsPage() {
+  const { user } = useAuth();
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
+  const [userSpecificClasses, setUserSpecificClasses] = useState<Class[]>([]);
 
-  // Fetch classes
-  const { data: classes = [] } = useQuery<Class[]>({
+  // Fetch all classes - only used by admin
+  const { data: allClasses = [], isLoading: isLoadingAllClasses } = useQuery<Class[]>({
     queryKey: ["/api/classes"],
+    enabled: user?.role === "admin"
   });
 
-  // Set first class as default when classes are loaded
+  // For class teacher, fetch only their assigned class
+  const { data: assignedClass, isLoading: isLoadingAssignedClass } = useQuery<Class>({
+    queryKey: ["/api/users", user?.id, "class"],
+    enabled: user?.role === "class_teacher" && !!user?.id
+  });
+
+  // For subject teacher, fetch classes where they teach subjects
+  const { data: teacherClasses = [], isLoading: isLoadingTeacherClasses } = useQuery<Class[]>({
+    queryKey: ["/api/teachers", user?.id, "classes"],
+    enabled: user?.role === "subject_teacher" && !!user?.id
+  });
+
+  // Combine all data sources based on user role to get the filtered class list for this user
   useEffect(() => {
-    if (classes.length > 0 && !selectedClassId) {
-      setSelectedClassId(classes[0].id);
+    if (user) {
+      let classes: Class[] = [];
+      
+      if (user.role === "admin" && allClasses) {
+        classes = allClasses;
+      } else if (user.role === "class_teacher" && assignedClass) {
+        classes = [assignedClass];
+      } else if (user.role === "subject_teacher" && teacherClasses) {
+        classes = teacherClasses;
+      }
+      
+      setUserSpecificClasses(classes);
+      
+      // Set first available class as default when classes are loaded
+      if (classes.length > 0 && !selectedClassId) {
+        setSelectedClassId(classes[0].id);
+      }
     }
-  }, [classes, selectedClassId]);
+  }, [user, allClasses, assignedClass, teacherClasses, selectedClassId]);
 
   // Fetch subjects for selected class
-  const { data: subjects = [] } = useQuery<Subject[]>({
+  const { data: subjects = [], isLoading: isLoadingSubjects } = useQuery<Subject[]>({
     queryKey: ["/api/classes", selectedClassId, "subjects"],
     enabled: !!selectedClassId,
   });
 
+  // For subject teachers, filter to only their subjects
+  const filteredSubjects = user?.role === "subject_teacher" 
+    ? subjects.filter(subject => subject.teacherId === user.id) 
+    : subjects;
+
   // Set first subject as default when subjects are loaded
   useEffect(() => {
-    if (subjects.length > 0 && !selectedSubjectId) {
-      setSelectedSubjectId(subjects[0].id);
+    if (filteredSubjects.length > 0 && !selectedSubjectId) {
+      setSelectedSubjectId(filteredSubjects[0].id);
     }
-  }, [subjects, selectedSubjectId]);
+  }, [filteredSubjects, selectedSubjectId]);
 
   interface AnalyticsData {
     byStatus: {
@@ -60,7 +96,7 @@ export default function AnalyticsPage() {
   // Fetch analytics data with safe default values
   const {
     data: analytics,
-    isLoading,
+    isLoading: isLoadingAnalytics,
   } = useQuery<AnalyticsData>({
     queryKey: [
       "/api/classes",
@@ -106,8 +142,13 @@ export default function AnalyticsPage() {
     { name: "Week 4", rate: 87 },
   ];
 
-  const currentClass = classes.find(c => c.id === selectedClassId);
-  const currentSubject = subjects.find(s => s.id === selectedSubjectId);
+  const currentClass = userSpecificClasses.find(c => c.id === selectedClassId);
+  const currentSubject = filteredSubjects.find(s => s.id === selectedSubjectId);
+
+  // Check if data is still loading
+  const isLoading = isLoadingAllClasses || isLoadingAssignedClass || 
+                    isLoadingTeacherClasses || isLoadingSubjects || 
+                    isLoadingAnalytics;
 
   return (
     <AppShell>
@@ -122,13 +163,17 @@ export default function AnalyticsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
             <Select
               value={selectedClassId?.toString() || ""}
-              onValueChange={(value) => setSelectedClassId(value)}
+              onValueChange={(value) => {
+                setSelectedClassId(value);
+                setSelectedSubjectId(null); // Reset subject when class changes
+              }}
+              disabled={isLoading || userSpecificClasses.length === 0}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a class" />
+                <SelectValue placeholder={isLoading ? "Loading..." : "Select a class"} />
               </SelectTrigger>
               <SelectContent>
-                {classes.map((cls) => (
+                {userSpecificClasses.map((cls) => (
                   <SelectItem key={cls.id} value={cls.id.toString()}>
                     {cls.name}
                   </SelectItem>
@@ -142,13 +187,19 @@ export default function AnalyticsPage() {
             <Select
               value={selectedSubjectId?.toString() || ""}
               onValueChange={(value) => setSelectedSubjectId(value)}
-              disabled={!selectedClassId}
+              disabled={!selectedClassId || isLoading || filteredSubjects.length === 0}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a subject" />
+                <SelectValue placeholder={
+                  !selectedClassId 
+                    ? "Select a class first" 
+                    : isLoadingSubjects 
+                      ? "Loading..." 
+                      : "Select a subject"
+                } />
               </SelectTrigger>
               <SelectContent>
-                {subjects.map((subject) => (
+                {filteredSubjects.map((subject) => (
                   <SelectItem key={subject.id} value={subject.id.toString()}>
                     {subject.name}
                   </SelectItem>
@@ -171,7 +222,17 @@ export default function AnalyticsPage() {
           </TabsList>
           
           <TabsContent value="stats">
-            {isLoading ? (
+            {!selectedClassId || !selectedSubjectId ? (
+              <div className="py-12 text-center text-gray-500">
+                <AlertTriangle className="h-8 w-8 mx-auto mb-4 text-amber-500" />
+                <h3 className="text-lg font-medium mb-1">
+                  {!selectedClassId 
+                    ? "Please select a class" 
+                    : "Please select a subject"}
+                </h3>
+                <p>Select both a class and subject to view analytics</p>
+              </div>
+            ) : isLoading ? (
               <div className="flex justify-center items-center h-64">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
@@ -179,146 +240,146 @@ export default function AnalyticsPage() {
               <>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                   {/* Submission Status Chart */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Submission Status</CardTitle>
-                  <CardDescription>
-                    {currentClass?.name} - {currentSubject?.name} notebook submission status
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={submissionStatusData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        >
-                          {submissionStatusData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value) => [`${value} notebooks`, ""]} />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Weekly Trend Chart */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Weekly Submission Trend</CardTitle>
-                  <CardDescription>
-                    Notebook submission trend for the past week
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={weeklyTrendData}
-                        margin={{
-                          top: 5,
-                          right: 30,
-                          left: 20,
-                          bottom: 5,
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="submitted" fill="#10b981" name="Submitted" />
-                        <Bar dataKey="missing" fill="#ef4444" name="Missing" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* Monthly Compliance Chart */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Monthly Compliance Rate</CardTitle>
-                  <CardDescription>
-                    Notebook submission compliance rate over time
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={monthlyComplianceData}
-                        margin={{
-                          top: 5,
-                          right: 30,
-                          left: 20,
-                          bottom: 5,
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis domain={[0, 100]} />
-                        <Tooltip formatter={(value) => [`${value}%`, "Compliance Rate"]} />
-                        <Bar dataKey="rate" fill="#3b82f6" name="Compliance Rate" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Frequent Defaulters */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Frequent Defaulters</CardTitle>
-                  <CardDescription>
-                    Students who frequently miss notebook submissions
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {safeAnalytics.frequentDefaulters.map((item, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <StudentAvatar
-                            initials={item?.student?.avatarInitials || "??"}
-                            size="sm"
-                          />
-                          <div className="ml-3">
-                            <div className="text-sm font-medium">{item?.student?.fullName || "Unknown Student"}</div>
-                            <div className="text-xs text-gray-500">{item?.student?.rollNumber || "No ID"}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center">
-                          <div className="ml-2 text-sm font-medium py-1 px-2 bg-red-100 text-red-800 rounded-full">
-                            {item?.count ?? 0} missed
-                          </div>
-                        </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Submission Status</CardTitle>
+                      <CardDescription>
+                        {currentClass?.name} - {currentSubject?.name} notebook submission status
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={submissionStatusData}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              outerRadius={80}
+                              fill="#8884d8"
+                              dataKey="value"
+                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                            >
+                              {submissionStatusData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value) => [`${value} notebooks`, ""]} />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
                       </div>
-                    ))}
+                    </CardContent>
+                  </Card>
 
-                    {safeAnalytics.frequentDefaulters.length === 0 && (
-                      <div className="text-center py-8 text-gray-500">
-                        No frequent defaulters found
+                  {/* Weekly Trend Chart */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Weekly Submission Trend</CardTitle>
+                      <CardDescription>
+                        Notebook submission trend for the past week
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={weeklyTrendData}
+                            margin={{
+                              top: 5,
+                              right: 30,
+                              left: 20,
+                              bottom: 5,
+                            }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" />
+                            <YAxis />
+                            <Tooltip />
+                            <Legend />
+                            <Bar dataKey="submitted" fill="#10b981" name="Submitted" />
+                            <Bar dataKey="missing" fill="#ef4444" name="Missing" />
+                          </BarChart>
+                        </ResponsiveContainer>
                       </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </>
-        )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                  {/* Monthly Compliance Chart */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Monthly Compliance Rate</CardTitle>
+                      <CardDescription>
+                        Notebook submission compliance rate over time
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={monthlyComplianceData}
+                            margin={{
+                              top: 5,
+                              right: 30,
+                              left: 20,
+                              bottom: 5,
+                            }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" />
+                            <YAxis domain={[0, 100]} />
+                            <Tooltip formatter={(value) => [`${value}%`, "Compliance Rate"]} />
+                            <Bar dataKey="rate" fill="#3b82f6" name="Compliance Rate" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Frequent Defaulters */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Frequent Defaulters</CardTitle>
+                      <CardDescription>
+                        Students who frequently miss notebook submissions
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {safeAnalytics.frequentDefaulters.map((item, index) => (
+                          <div key={index} className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <StudentAvatar
+                                initials={item?.student?.avatarInitials || "??"}
+                                size="sm"
+                              />
+                              <div className="ml-3">
+                                <div className="text-sm font-medium">{item?.student?.fullName || "Unknown Student"}</div>
+                                <div className="text-xs text-gray-500">{item?.student?.rollNumber || "No ID"}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center">
+                              <div className="ml-2 text-sm font-medium py-1 px-2 bg-red-100 text-red-800 rounded-full">
+                                {item?.count ?? 0} missed
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+
+                        {safeAnalytics.frequentDefaulters.length === 0 && (
+                          <div className="text-center py-8 text-gray-500">
+                            No frequent defaulters found
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            )}
           </TabsContent>
           
           <TabsContent value="ai">

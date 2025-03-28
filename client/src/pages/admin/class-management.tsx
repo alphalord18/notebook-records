@@ -152,7 +152,7 @@ export default function ClassManagement() {
     resolver: zodResolver(classFormSchema),
     defaultValues: {
       name: "",
-      teacherId: "",
+      teacherId: "unassigned", // Default to unassigned
       sessionId: activeSession?.id || "",
     },
   });
@@ -162,7 +162,7 @@ export default function ClassManagement() {
     resolver: zodResolver(classFormSchema),
     defaultValues: {
       name: "",
-      teacherId: "",
+      teacherId: "unassigned", // Default to unassigned
       sessionId: "",
     },
   });
@@ -170,7 +170,12 @@ export default function ClassManagement() {
   // Create class mutation
   const createClassMutation = useMutation({
     mutationFn: async (data: ClassFormValues) => {
-      const response = await apiRequest("POST", "/api/classes", data);
+      // Convert "unassigned" to empty string for API
+      const apiData = {
+        ...data,
+        teacherId: data.teacherId === "unassigned" ? "" : data.teacherId
+      };
+      const response = await apiRequest("POST", "/api/classes", apiData);
       return response.json();
     },
     onSuccess: () => {
@@ -179,13 +184,17 @@ export default function ClassManagement() {
         description: "The class has been created successfully.",
       });
       setIsCreateDialogOpen(false);
-      createForm.reset();
+      createForm.reset({
+        name: "",
+        teacherId: "unassigned",
+        sessionId: activeSession?.id || "",
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/classes"] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: `Failed to create class: ${error.message}`,
+        description: `Failed to create class: ${error.message || "Unknown error"}`,
         variant: "destructive",
       });
     },
@@ -195,7 +204,12 @@ export default function ClassManagement() {
   const editClassMutation = useMutation({
     mutationFn: async (data: ClassFormValues & { id: string }) => {
       const { id, ...classData } = data;
-      const response = await apiRequest("PUT", `/api/classes/${id}`, classData);
+      // Convert "unassigned" to empty string for API
+      const apiData = {
+        ...classData,
+        teacherId: classData.teacherId === "unassigned" ? "" : classData.teacherId
+      };
+      const response = await apiRequest("PUT", `/api/classes/${id}`, apiData);
       return response.json();
     },
     onSuccess: () => {
@@ -204,13 +218,17 @@ export default function ClassManagement() {
         description: "The class has been updated successfully.",
       });
       setIsEditDialogOpen(false);
-      editForm.reset();
+      editForm.reset({
+        name: "",
+        teacherId: "unassigned",
+        sessionId: "",
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/classes"] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: `Failed to update class: ${error.message}`,
+        description: `Failed to update class: ${error.message || "Unknown error"}`,
         variant: "destructive",
       });
     },
@@ -228,10 +246,10 @@ export default function ClassManagement() {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/classes"] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: `Failed to delete class: ${error.message}`,
+        description: `Failed to delete class: ${error.message || "Unknown error"}`,
         variant: "destructive",
       });
     },
@@ -257,7 +275,7 @@ export default function ClassManagement() {
     setSelectedClass(classItem);
     editForm.reset({
       name: classItem.name,
-      teacherId: classItem.teacherId || "",
+      teacherId: classItem.teacherId || "unassigned",
       sessionId: classItem.sessionId,
     });
     setIsEditDialogOpen(true);
@@ -515,7 +533,7 @@ export default function ClassManagement() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">None (Unassigned)</SelectItem>
+                          <SelectItem value="unassigned">None (Unassigned)</SelectItem>
                           {classTeachers.map((teacher) => (
                             <SelectItem key={teacher.id} value={teacher.id}>
                               {teacher.fullName}
@@ -626,7 +644,7 @@ export default function ClassManagement() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">None (Unassigned)</SelectItem>
+                          <SelectItem value="unassigned">None (Unassigned)</SelectItem>
                           {classTeachers.map((teacher) => (
                             <SelectItem key={teacher.id} value={teacher.id}>
                               {teacher.fullName}
