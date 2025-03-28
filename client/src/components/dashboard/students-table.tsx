@@ -72,15 +72,21 @@ export function StudentsTable({
   const [statusFilter, setStatusFilter] = useState<SubmissionStatus | 'all'>('all');
   
   // Filter students based on search term and status filter
-  const filteredStudents = students.filter(student => {
-    const matchesSearch = 
-      student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.scholarNumber.includes(searchTerm);
+  const filteredStudents = students?.filter(student => {
+    // Skip invalid student objects
+    if (!student) {
+      return false;
+    }
+
+    const matchesSearch = !searchTerm || (
+      (student.fullName?.toLowerCase()?.includes(searchTerm.toLowerCase()) || false) ||
+      (student.scholarNumber?.includes(searchTerm) || false)
+    );
     
     const matchesStatus = statusFilter === 'all' || student.status === statusFilter;
     
     return matchesSearch && matchesStatus;
-  });
+  }) || [];
 
   // Get status badge based on submission status
   const getStatusBadge = (status: SubmissionStatus) => {
@@ -192,41 +198,41 @@ export function StudentsTable({
             ) : filteredStudents.length > 0 ? (
               // Student rows
               filteredStudents.map((student) => (
-                <TableRow key={student.id}>
-                  <TableCell className="font-medium">{student.scholarNumber}</TableCell>
+                <TableRow key={student?.id || Math.random().toString()}>
+                  <TableCell className="font-medium">{student?.scholarNumber || 'N/A'}</TableCell>
                   <TableCell>
                     <div className="flex items-center">
                       <User className="w-4 h-4 mr-2 text-gray-500" />
-                      {student.fullName}
+                      {student?.fullName || 'Unknown'}
                     </div>
                   </TableCell>
                   <TableCell>
                     <AnimatePresence mode="wait">
                       <motion.div
-                        key={student.status}
+                        key={student?.status || 'unknown'}
                         initial={{ y: -10, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 10, opacity: 0 }}
                         transition={{ duration: 0.2 }}
                       >
-                        {getStatusBadge(student.status)}
+                        {getStatusBadge(student?.status as SubmissionStatus)}
                       </motion.div>
                     </AnimatePresence>
                   </TableCell>
-                  <TableCell>{formatDate(student.submittedAt)}</TableCell>
-                  <TableCell>{formatDate(student.returnedAt)}</TableCell>
+                  <TableCell>{formatDate(student?.submittedAt)}</TableCell>
+                  <TableCell>{formatDate(student?.returnedAt)}</TableCell>
                   <TableCell>
-                    {student.notificationSent ? (
+                    {student?.notificationSent ? (
                       <Badge variant="outline" className="text-gray-500 flex items-center gap-1">
                         <Bell className="w-3 h-3" />
-                        {formatDate(student.notificationSentAt).split(',')[0]}
+                        {formatDate(student?.notificationSentAt)?.split(',')[0] || 'Sent'}
                       </Badge>
-                    ) : student.status === 'missing' ? (
+                    ) : student?.status === 'missing' ? (
                       <Button 
                         variant="ghost" 
                         size="sm" 
                         className="h-6 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                        onClick={() => onSendNotification(student.id)}
+                        onClick={() => onSendNotification(student?.id || '')}
                       >
                         <Bell className="w-3 h-3 mr-1" />
                         Send
@@ -244,21 +250,21 @@ export function StudentsTable({
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         
-                        {student.status === 'submitted' && (
-                          <DropdownMenuItem onClick={() => onMarkAsReturned(student.id)}>
+                        {student?.status === 'submitted' && (
+                          <DropdownMenuItem onClick={() => onMarkAsReturned(student?.id || '')}>
                             <Check className="w-4 h-4 mr-2" />
                             Mark as Returned
                           </DropdownMenuItem>
                         )}
                         
-                        {student.status === 'missing' && !student.notificationSent && (
-                          <DropdownMenuItem onClick={() => onSendNotification(student.id)}>
+                        {student?.status === 'missing' && !student?.notificationSent && (
+                          <DropdownMenuItem onClick={() => onSendNotification(student?.id || '')}>
                             <Bell className="w-4 h-4 mr-2" />
                             Send Notification
                           </DropdownMenuItem>
                         )}
                         
-                        <DropdownMenuItem onClick={() => onViewHistory(student.id)}>
+                        <DropdownMenuItem onClick={() => onViewHistory(student?.id || '')}>
                           <History className="w-4 h-4 mr-2" />
                           View History
                         </DropdownMenuItem>
