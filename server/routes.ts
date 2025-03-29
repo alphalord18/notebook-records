@@ -593,6 +593,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all students
+  app.get("/api/students", isAuthenticated, async (req, res) => {
+    try {
+      // Admin can see all students
+      // Class teachers can only see students in their class
+      // Subject teachers can see students in the classes they teach
+      
+      if (req.user?.role === "admin") {
+        const students = await storage.getStudents();
+        res.json(students);
+      } else if (req.user?.role === "class_teacher" && req.user?.assignedClassId) {
+        const students = await storage.getStudentsByClassId(req.user.assignedClassId);
+        res.json(students);
+      } else if (req.user?.role === "subject_teacher") {
+        // Get classes taught by this teacher
+        const classes = await storage.getClassesByTeacherId(req.user?.id);
+        const classIds = classes.map(c => c.id);
+        
+        // Get students in these classes
+        let allStudents = [];
+        for (const classId of classIds) {
+          const students = await storage.getStudentsByClassId(classId);
+          allStudents = [...allStudents, ...students];
+        }
+        
+        // Remove duplicates (if any)
+        const uniqueStudents = allStudents.filter((student, index, self) =>
+          index === self.findIndex((s) => s.id === student.id)
+        );
+        
+        res.json(uniqueStudents);
+      } else {
+        res.json([]);
+      }
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Failed to fetch students" });
+    }
+  });
+  
+  // Get a single student by ID
+  app.get("/api/students/:id", isAuthenticated, async (req, res) => {
+    try {
+      const student = await storage.getStudent(req.params.id);
+      
+      if (!student) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+      
+      // Check if the user has access to this student
+      if (req.user?.role !== "admin") {
+        if (req.user?.role === "class_teacher" && req.user?.assignedClassId !== student.classId) {
+          return res.status(403).json({ message: "You don't have access to this student" });
+        }
+        
+        if (req.user?.role === "subject_teacher") {
+          // Check if teacher teaches a class this student is in
+          const classes = await storage.getClassesByTeacherId(req.user?.id);
+          const teachesStudentClass = classes.some(c => c.id === student.classId);
+          
+          if (!teachesStudentClass) {
+            return res.status(403).json({ message: "You don't have access to this student" });
+          }
+        }
+      }
+      
+      res.json(student);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Failed to fetch student" });
+    }
+  });
+  
+  // Create a new student
   app.post("/api/students", isAuthenticated, async (req, res) => {
     try {
       // Validate the student data
@@ -619,6 +693,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update a student (PATCH method only updates the specified fields)
   app.patch("/api/students/:id", isAuthenticated, async (req, res) => {
     try {
       // Only class teachers and admins can update students
@@ -677,6 +752,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update a student (full update)
+  app.put("/api/students/:id", isAuthenticated, async (req, res) => {
+    try {
+      // Only admins can perform full updates
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ message: "Only administrators can perform full updates" });
+      }
+      
+      // Don't allow changing scholar number
+      if (req.body.scholarNumber) {
+        delete req.body.scholarNumber;
+      }
+      
+      const student = await storage.updateStudent(req.params.id, req.body);
+      res.json(student);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Failed to update student" });
+    }
+  });
+  
+  // Delete a student
+  app.delete("/api/students/:id", isAuthenticated, async (req, res) => {
+    try {
+      // Only admins can delete students
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ message: "Only administrators can delete students" });
+      }
+      
+      // Check if student exists
+      const student = await storage.getStudent(req.params.id);
+      if (!student) {
+        return res.status(404).json({ message: "Student not found" });
+      }
+      
+      // Check if student has any submissions
+      const submissions = await storage.getSubmissionsForStudent(req.params.id);
+      if (submissions && submissions.length > 0) {
+        return res.status(409).json({ 
+          message: "Cannot delete student with existing submissions. Inactivate the student instead." 
+        });
+      }
+      
+      // Delete the student
+      await storage.deleteStudent(req.params.id);
+      
+      res.json({ 
+        message: "Student deleted successfully",
+        id: req.params.id
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Failed to delete student" });
+    }
+  });
+  
   app.get("/api/students/:id/class-history", isAuthenticated, async (req, res) => {
     try {
       // Only admins and class teachers can view class history

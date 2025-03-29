@@ -11,6 +11,7 @@ import AnalyticsPage from "@/pages/analytics-page";
 import AdminDashboard from "@/pages/admin/admin-dashboard";
 import UserManagement from "@/pages/admin/user-management";
 import ClassManagement from "@/pages/admin/class-management";
+import StudentManagement from "@/pages/admin/student-management";
 
 function RoleBasedRoute({ path, component: Component, requiredRole }: { path: string, component: React.ComponentType<any>, requiredRole: string | string[] }) {
   const { user, isLoading } = useAuth();
@@ -54,6 +55,7 @@ function Router() {
       <RoleBasedRoute path="/admin" component={AdminDashboard} requiredRole="admin" />
       <RoleBasedRoute path="/admin/user-management" component={UserManagement} requiredRole="admin" />
       <RoleBasedRoute path="/admin/class-management" component={ClassManagement} requiredRole="admin" />
+      <RoleBasedRoute path="/admin/student-management" component={StudentManagement} requiredRole="admin" />
       
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />

@@ -418,7 +418,7 @@ export default function AdminDashboard() {
 
             {/* Quick Access */}
             <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-md">Manage Classes</CardTitle>
@@ -470,6 +470,25 @@ export default function AdminDashboard() {
                   <Button asChild variant="outline" className="w-full">
                     <Link to="/analytics">
                       Go to Analytics
+                      <ChevronRight className="ml-1 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-md">Manage Students</CardTitle>
+                </CardHeader>
+                <CardContent className="pb-2">
+                  <p className="text-sm text-gray-500">
+                    Add, edit and track student information and class assignments.
+                  </p>
+                </CardContent>
+                <CardFooter>
+                  <Button asChild variant="outline" className="w-full">
+                    <Link to="/admin/student-management">
+                      Go to Student Management
                       <ChevronRight className="ml-1 h-4 w-4" />
                     </Link>
                   </Button>
