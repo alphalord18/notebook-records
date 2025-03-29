@@ -23,15 +23,29 @@ export default function DashboardPage() {
   const [smsModalOpen, setSmsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
+  // Fetch subjects assigned to the teacher
+  const { data: teacherSubjects = [] } = useQuery<Subject[]>({
+    queryKey: ["/api/subjects"],
+    enabled: !!user,
+  });
+
   // Fetch classes
   const { data: classes = [] } = useQuery<Class[]>({
     queryKey: ["/api/classes"],
     enabled: !!user,
   });
 
+  // Set default subject from teacher's assigned subjects
+  useEffect(() => {
+    if (teacherSubjects && teacherSubjects.length > 0 && !selectedSubjectId) {
+      setSelectedSubjectId(teacherSubjects[0]?.id);
+    }
+  }, [teacherSubjects, selectedSubjectId]);
+
   // Set first class as default when classes are loaded
   useEffect(() => {
     if (classes && classes.length > 0 && !selectedClassId) {
+      // For subject teachers, select the first class they teach
       setSelectedClassId(classes[0]?.id);
     }
   }, [classes, selectedClassId]);
@@ -74,7 +88,7 @@ export default function DashboardPage() {
     const matchesSearch =
       !searchQuery ||
       student?.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student?.rollNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (typeof student?.rollNumber === 'string' && student.rollNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
       student?.parentName?.toLowerCase().includes(searchQuery.toLowerCase());
 
     // Apply status filter
@@ -296,6 +310,13 @@ export default function DashboardPage() {
           totalCount={totalStudents}
           submittedCount={submittedCount}
           missingCount={missingCount}
+          classes={classes}
+          subjects={teacherSubjects}
+          selectedClassId={selectedClassId}
+          selectedSubjectId={selectedSubjectId}
+          onClassChange={setSelectedClassId}
+          onSubjectChange={setSelectedSubjectId}
+          showClassDropdown={user?.role === 'subject_teacher' || user?.role === 'admin'}
         />
 
         {/* Students Table */}

@@ -167,12 +167,26 @@ export class Timestamp {
   }
 }
 
-// Create our in-memory implementation for now
-console.warn('Using in-memory Firebase implementation for development');
-const app = {} as admin.app.App; // Mock app
-const db = new MemoryFirestore() as unknown as FirebaseFirestore.Firestore;
-const auth = new MemoryAuth() as unknown as admin.auth.Auth;
-const storage = new MemoryStorage().bucket() as unknown as any; // Using any for now
+// Using real Firebase
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import { getStorage } from 'firebase-admin/storage';
+
+// Initialize Firebase Admin with credentials from environment variables
+const firebaseApp = initializeApp({
+  credential: cert({
+    projectId: process.env.FIREBASE_PROJECT_ID || '',
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL || '',
+    privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+  }),
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.appspot.com`
+});
+
+const app = firebaseApp;
+const db = getFirestore(app);
+const auth = getAuth(app);
+const storage = getStorage(app).bucket();
 
 // For compatibility with FieldValue
 const FieldValue = {

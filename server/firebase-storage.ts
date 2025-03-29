@@ -598,16 +598,20 @@ export class FirebaseStorage implements IStorage {
   }
 
   async getActiveSubmissionCycle(subjectId: string, classId: string): Promise<SubmissionCycle | null> {
+    // In Firestore, we can only filter on one field with inequality operators
+    // So we'll use equality filters on both fields
     const cycles = await db.collection(collections.SUBMISSION_CYCLES)
       .where('subjectId', '==', subjectId)
       .where('classId', '==', classId)
-      .where('status', '==', 'active')
       .get();
     
     if (cycles.empty) return null;
     
-    const activeCycles = cycles.docs.map(doc => ({
-      id: doc.id,
+    // Then filter for active status in the application code
+    const activeCycles = cycles.docs
+      .filter(doc => doc.data().status === 'active')
+      .map(doc => ({
+        id: doc.id,
       ...doc.data()
     } as SubmissionCycle));
     

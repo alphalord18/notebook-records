@@ -1,7 +1,8 @@
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Filter, Check, X } from "lucide-react";
+import { Filter, Check, X, Users } from "lucide-react";
+import { Class, Subject } from "@shared/schema";
 
 interface StudentFiltersProps {
   searchQuery: string;
@@ -11,6 +12,13 @@ interface StudentFiltersProps {
   totalCount: number;
   submittedCount: number;
   missingCount: number;
+  classes?: Class[];
+  subjects?: Subject[];
+  selectedClassId?: string | null;
+  selectedSubjectId?: string | null;
+  onClassChange?: (classId: string) => void;
+  onSubjectChange?: (subjectId: string) => void;
+  showClassDropdown?: boolean;
 }
 
 export function StudentFilters({
@@ -20,12 +28,43 @@ export function StudentFilters({
   onStatusFilterChange,
   totalCount,
   submittedCount,
-  missingCount
+  missingCount,
+  classes = [],
+  subjects = [],
+  selectedClassId,
+  selectedSubjectId,
+  onClassChange,
+  onSubjectChange,
+  showClassDropdown = false
 }: StudentFiltersProps) {
   return (
     <div className="bg-white shadow rounded-lg mb-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between p-4">
         <div className="w-full md:w-auto flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3 mb-3 md:mb-0">
+          {/* Class dropdown for subject teachers */}
+          {showClassDropdown && classes.length > 0 && onClassChange && (
+            <div className="flex-1 md:w-40">
+              <Select 
+                value={selectedClassId || undefined} 
+                onValueChange={onClassChange}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map((cls) => (
+                    <SelectItem key={cls.id} value={cls.id}>
+                      <div className="flex items-center">
+                        <Users className="h-3.5 w-3.5 mr-1 text-gray-500" />
+                        {cls.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          
           <div className="flex-1 min-w-0">
             <div className="relative rounded-md shadow-sm">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
