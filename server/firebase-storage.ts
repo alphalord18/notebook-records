@@ -220,18 +220,7 @@ export class FirebaseStorage implements IStorage {
     
     try {
       // Create the Firebase Auth user if we're using Firebase Auth
-      let authUid = undefined;
-      /* 
-      if (process.env.USE_FIREBASE_AUTH === 'true') {
-        const userRecord = await auth.createUser({
-          email: userData.email,
-          password: userData.password,
-          displayName: userData.fullName,
-        });
-        authUid = userRecord.uid;
-      }
-      */
-      
+      // Prepare user data without undefined fields that would cause Firestore errors
       const newUser: Omit<User, 'id'> = {
         username: userData.username,
         password: userData.password, // Include the password!
@@ -240,8 +229,7 @@ export class FirebaseStorage implements IStorage {
         email: userData.email,
         phone: userData.phone,
         avatarInitials,
-        createdAt: Timestamp.now(),
-        authUid
+        createdAt: Timestamp.now()
       };
       
       return this.createDocument<User>(collections.USERS, newUser);

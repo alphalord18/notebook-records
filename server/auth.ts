@@ -61,8 +61,8 @@ async function createInitialUsers() {
       role: "subject_teacher", 
       email: "math@school.edu",
       phone: "9876543210",
-      avatarInitials: "MT",
-      assignedSubjectId: "math001" // This will be created later
+      avatarInitials: "MT"
+      // assignedSubjectId will be set during data initialization
     });
   }
   
@@ -78,8 +78,8 @@ async function createInitialUsers() {
       role: "class_teacher", 
       email: "class@school.edu",
       phone: "5555555555",
-      avatarInitials: "CT",
-      assignedClassId: "class001" // This will be created later
+      avatarInitials: "CT"
+      // assignedClassId will be set during data initialization
     });
   }
 }
@@ -119,10 +119,10 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Incorrect username or password" });
         }
         
-        // Update last login time
-        await storage.updateUser(user.id, {
-          lastLogin: Timestamp.now()
-        });
+        // Skip updating last login for now due to timestamp incompatibility issues
+        // await storage.updateUser(user.id, {
+        //   lastLogin: Timestamp.now()
+        // });
         
         return done(null, user);
       } catch (error) {
