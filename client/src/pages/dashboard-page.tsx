@@ -18,8 +18,8 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
-  const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [smsModalOpen, setSmsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
@@ -100,7 +100,7 @@ export default function DashboardPage() {
 
   // Mark submission as submitted
   const markSubmittedMutation = useMutation({
-    mutationFn: async (studentId: number) => {
+    mutationFn: async (studentId: string) => {
       if (!selectedSubjectId) throw new Error("No subject selected");
       
       return await apiRequest("POST", "/api/submissions", {
@@ -129,7 +129,7 @@ export default function DashboardPage() {
 
   // Mark submission as returned
   const markReturnedMutation = useMutation({
-    mutationFn: async (submissionId: number) => {
+    mutationFn: async (submissionId: string) => {
       return await apiRequest(
         "POST",
         `/api/submissions/${submissionId}/mark-returned`,

@@ -53,19 +53,39 @@ export interface StudentSubmission {
   }[];
 }
 
+export interface StudentWithSubmission {
+  id: string;
+  fullName: string;
+  scholarNumber: string;
+  rollNumber: number | string;
+  classId: string;
+  parentName: string;
+  parentPhone?: string;
+  parentEmail?: string;
+  isActive: boolean;
+  submissions: {
+    id: string;
+    status: 'submitted' | 'returned' | 'missing';
+    submittedAt?: string;
+    returnedAt?: string;
+    notificationSent?: boolean;
+    notificationSentAt?: string;
+  }[];
+}
+
 interface StudentsTableProps {
-  students: StudentSubmission[];
-  onMarkAsReturned: (studentId: string) => void;
+  students: StudentWithSubmission[];
+  onMarkSubmitted: (studentId: string) => void;
+  onMarkReturned: (submissionId: string) => void;
   onSendNotification: (studentId: string) => void;
-  onViewHistory: (studentId: string) => void;
   isLoading?: boolean;
 }
 
 export function StudentsTable({
   students,
-  onMarkAsReturned,
+  onMarkSubmitted,
+  onMarkReturned,
   onSendNotification,
-  onViewHistory,
   isLoading = false
 }: StudentsTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -83,7 +103,8 @@ export function StudentsTable({
       (student.scholarNumber?.includes(searchTerm) || false)
     );
     
-    const matchesStatus = statusFilter === 'all' || student.status === statusFilter;
+    const currentStatus = student.submissions?.[0]?.status || 'missing';
+    const matchesStatus = statusFilter === 'all' || currentStatus === statusFilter;
     
     return matchesSearch && matchesStatus;
   }) || [];
@@ -209,25 +230,25 @@ export function StudentsTable({
                   <TableCell>
                     <AnimatePresence mode="wait">
                       <motion.div
-                        key={student?.status || 'unknown'}
+                        key={student?.submissions?.[0]?.status || 'unknown'}
                         initial={{ y: -10, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 10, opacity: 0 }}
                         transition={{ duration: 0.2 }}
                       >
-                        {getStatusBadge(student?.status as SubmissionStatus)}
+                        {getStatusBadge((student?.submissions?.[0]?.status || 'missing') as SubmissionStatus)}
                       </motion.div>
                     </AnimatePresence>
                   </TableCell>
-                  <TableCell>{formatDate(student?.submittedAt)}</TableCell>
-                  <TableCell>{formatDate(student?.returnedAt)}</TableCell>
+                  <TableCell>{formatDate(student?.submissions?.[0]?.submittedAt)}</TableCell>
+                  <TableCell>{formatDate(student?.submissions?.[0]?.returnedAt)}</TableCell>
                   <TableCell>
-                    {student?.notificationSent ? (
+                    {student?.submissions?.[0]?.notificationSent ? (
                       <Badge variant="outline" className="text-gray-500 flex items-center gap-1">
                         <Bell className="w-3 h-3" />
-                        {formatDate(student?.notificationSentAt)?.split(',')[0] || 'Sent'}
+                        {formatDate(student?.submissions?.[0]?.notificationSentAt)?.split(',')[0] || 'Sent'}
                       </Badge>
-                    ) : student?.status === 'missing' ? (
+                    ) : student?.submissions?.[0]?.status === 'missing' ? (
                       <Button 
                         variant="ghost" 
                         size="sm" 
@@ -250,23 +271,23 @@ export function StudentsTable({
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         
-                        {student?.status === 'submitted' && (
-                          <DropdownMenuItem onClick={() => onMarkAsReturned(student?.id || '')}>
+                        {student?.submissions?.[0]?.status === 'submitted' && (
+                          <DropdownMenuItem onClick={() => onMarkReturned(student?.submissions?.[0]?.id || '')}>
                             <Check className="w-4 h-4 mr-2" />
                             Mark as Returned
                           </DropdownMenuItem>
                         )}
                         
-                        {student?.status === 'missing' && !student?.notificationSent && (
+                        {student?.submissions?.[0]?.status === 'missing' && !student?.submissions?.[0]?.notificationSent && (
                           <DropdownMenuItem onClick={() => onSendNotification(student?.id || '')}>
                             <Bell className="w-4 h-4 mr-2" />
                             Send Notification
                           </DropdownMenuItem>
                         )}
                         
-                        <DropdownMenuItem onClick={() => onViewHistory(student?.id || '')}>
+                        <DropdownMenuItem onClick={() => onMarkSubmitted(student?.id || '')}>
                           <History className="w-4 h-4 mr-2" />
-                          View History
+                          Mark as Submitted
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
