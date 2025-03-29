@@ -1,4 +1,5 @@
-import { Timestamp } from 'firebase/firestore';
+// Use server-side Timestamp for consistent typing
+import { Timestamp } from '../server/firebase-admin';
 
 export interface User {
   id: string;
@@ -26,7 +27,7 @@ export interface AcademicSession {
 export interface Class {
   id: string;
   name: string; // e.g., "7B"
-  classTeacherId: string; // Reference to the class teacher
+  teacherId: string; // Reference to the class teacher (called teacherId for compatibility with Firebase)
   sessionId: string; // Reference to academic session
   createdAt: Timestamp;
 }
@@ -35,6 +36,7 @@ export interface Subject {
   id: string;
   name: string; // e.g., "Science"
   teacherId: string; // Subject teacher ID
+  classId: string; // Reference to class ID (needed for Firebase compatibility)
   notebookColor: string; // Color code 
   submissionFrequency: "weekly" | "bi-weekly" | "monthly";
 }
@@ -191,13 +193,14 @@ export interface StudentInput {
 
 export interface ClassInput {
   name: string;
-  classTeacherId: string;
+  teacherId: string; // Called teacherId for compatibility with Firebase
   sessionId: string;
 }
 
 export interface SubjectInput {
   name: string;
   teacherId: string;
+  classId: string; // Class ID for Firebase compatibility
   notebookColor?: string;
   submissionFrequency?: "weekly" | "bi-weekly" | "monthly";
 }

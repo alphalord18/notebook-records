@@ -10,6 +10,7 @@ import {
 import { notificationService } from "./notification-service";
 import { defaulterPredictionService } from "./defaulter-prediction";
 import { twilioService } from "./twilio-service";
+import { adaptStudentForDefaulterPrediction } from "./types";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create HTTP server
@@ -1053,7 +1054,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Get students with submission history for prediction
-      const studentsHistory = await storage.getPotentialDefaulters(req.params.classId, threshold);
+      const studentsWithSubmissions = await storage.getPotentialDefaulters(req.params.classId, threshold);
+      
+      // Convert to the format expected by the defaulter prediction service
+      const studentsHistory = studentsWithSubmissions.map(student => 
+        adaptStudentForDefaulterPrediction(student)
+      );
       
       // Use AI service to predict defaulters
       const predictions = defaulterPredictionService.predictDefaulters(studentsHistory, threshold);

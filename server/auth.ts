@@ -10,7 +10,18 @@ import { Timestamp } from "./firebase-admin";
 
 declare global {
   namespace Express {
-    interface User extends User {}
+    // Define the User interface for Express session
+    interface User {
+      id: string;
+      username: string;
+      fullName: string;
+      role: "subject_teacher" | "class_teacher" | "admin";
+      email?: string;
+      phone?: string;
+      avatarInitials?: string;
+      assignedClassId?: string;
+      assignedSubjectId?: string;
+    }
   }
 }
 
@@ -106,7 +117,7 @@ export function setupAuth(app: Express) {
   });
 
   passport.use(
-    new LocalStrategy(async (username, password, done) => {
+    new LocalStrategy(async (username: string, password: string, done: any) => {
       try {
         const user = await storage.getUserByUsername(username);
         if (!user) {
@@ -131,11 +142,11 @@ export function setupAuth(app: Express) {
     }),
   );
 
-  passport.serializeUser((user, done) => {
+  passport.serializeUser((user: any, done: any) => {
     done(null, user.id);
   });
 
-  passport.deserializeUser(async (id: string, done) => {
+  passport.deserializeUser(async (id: string, done: any) => {
     try {
       const user = await storage.getUser(id);
       done(null, user);
@@ -147,7 +158,7 @@ export function setupAuth(app: Express) {
   // No registration endpoint as per requirements
 
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+    passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) return next(err);
       if (!user) {
         return res.status(401).json({ message: info?.message || "Authentication failed" });

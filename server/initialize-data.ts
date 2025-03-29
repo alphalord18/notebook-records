@@ -1,5 +1,6 @@
 import { storage } from './storage';
-import { Timestamp } from './firebase-admin';
+import { Timestamp, db } from './firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /**
  * Initializes the application with sample data
@@ -72,11 +73,12 @@ export async function initializeData() {
         const scholarNumberPrefix = classPrefix.padStart(2, '0');
         const scholarNumberSuffix = j.toString().padStart(3, '0');
         const scholarNumber = scholarNumberPrefix + scholarNumberSuffix;
+        const rollNumberStr = j.toString(); // Use string for roll number
         
         await storage.createStudent({
           fullName: `Student ${scholarNumber}`,
           scholarNumber: scholarNumber,
-          rollNumber: j,
+          rollNumber: rollNumberStr,
           classId: classId,
           parentName: `Parent of Student ${scholarNumber}`,
           parentPhone: `98765${scholarNumber.substring(1, 5)}`,
@@ -97,11 +99,11 @@ export async function initializeData() {
     
     // Create subjects
     const subjectData = [
-      { name: 'Mathematics', color: '#4f46e5', frequency: 'weekly' },
-      { name: 'Science', color: '#16a34a', frequency: 'biweekly' },
-      { name: 'English', color: '#ea580c', frequency: 'weekly' },
-      { name: 'Social Studies', color: '#9333ea', frequency: 'monthly' },
-      { name: 'Hindi', color: '#dc2626', frequency: 'weekly' }
+      { name: 'Mathematics', color: '#4f46e5', frequency: 'weekly' as const },
+      { name: 'Science', color: '#16a34a', frequency: 'bi-weekly' as const },
+      { name: 'English', color: '#ea580c', frequency: 'weekly' as const },
+      { name: 'Social Studies', color: '#9333ea', frequency: 'monthly' as const },
+      { name: 'Hindi', color: '#dc2626', frequency: 'weekly' as const }
     ];
     
     // Create subjects for each class
@@ -174,19 +176,30 @@ export async function initializeData() {
           returnedAt = returnDate;
         }
         
-        await storage.createSubmission({
+        // Convert submission data to proper format for Firebase
+        const submissionData = {
           studentId: student.id,
           subjectId: subject.id,
           cycleId: cycle.id,
           status,
-          submittedAt,
-          returnedAt,
           notes: status === 'missing' 
             ? 'Not submitted yet'
             : status === 'returned'
               ? 'Good work, keep it up!'
-              : 'Pending review'
-        });
+              : 'Pending review',
+          followUpRequired: status === 'missing'
+        };
+        
+        // Create the submission
+        const submission = await storage.createSubmission(submissionData);
+        
+        // If we need to set dates, update the submission after creation
+        if (submittedAt || returnedAt) {
+          await db.collection('submissions').doc(submission.id).update({
+            ...(submittedAt && { submittedAt: Timestamp.fromDate(submittedAt) }),
+            ...(returnedAt && { returnedAt: Timestamp.fromDate(returnedAt) })
+          });
+        }
       }
     }
     
@@ -196,9 +209,8 @@ export async function initializeData() {
     const templates = [
       {
         name: 'Submission Reminder',
-        type: 'submission_reminder',
-        subject: 'Reminder: Notebook Submission Due',
-        template: `Dear {{parentName}},
+        type: 'reminder' as const,
+        content: `Dear {{parentName}},
 
 We would like to remind you that {{studentName}}'s {{subjectName}} notebook submission is due on {{dueDate}}.
 
@@ -211,9 +223,8 @@ The School Administration`
       },
       {
         name: 'Missing Submission',
-        type: 'missing_submission',
-        subject: 'Missing Notebook Submission',
-        template: `Dear {{parentName}},
+        type: 'missing' as const,
+        content: `Dear {{parentName}},
 
 This is to inform you that {{studentName}} has not submitted their {{subjectName}} notebook which was due on {{dueDate}}.
 
@@ -226,9 +237,8 @@ The School Administration`
       },
       {
         name: 'Potential Defaulter Alert',
-        type: 'defaulter_alert',
-        subject: 'Important: Consistent Missing Submissions',
-        template: `Dear {{parentName}},
+        type: 'thankyou' as const, // Using thankyou type for now as it's one of the available options
+        content: `Dear {{parentName}},
 
 We are concerned to note that {{studentName}} has consistently failed to submit notebooks on time.
 
@@ -246,8 +256,8 @@ The School Administration`
       await storage.createNotificationTemplate({
         name: template.name,
         type: template.type,
-        subject: template.subject,
-        template: template.template
+        content: template.content,
+        isDefault: true
       });
     }
     

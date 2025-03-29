@@ -1,30 +1,5 @@
-import { DefaulterPrediction } from '@shared/schema';
 import { log } from './vite';
-
-/**
- * Interface for submission data used in defaulter prediction
- */
-interface SubmissionData {
-  studentId: string;
-  submissionId: string;
-  status: 'submitted' | 'returned' | 'missing';
-  submittedAt?: Date;
-  returnedAt?: Date;
-  dueDate?: Date;
-  cycleId: string;
-  cycleStartDate: Date;
-}
-
-/**
- * Interface for student submission history
- */
-interface StudentSubmissionHistory {
-  studentId: string;
-  studentName: string;
-  scholarNumber: string;
-  submissions: SubmissionData[];
-  previousMissingCount: number;
-}
+import { DefaulterPrediction, SubmissionData, StudentSubmissionHistory } from './types';
 
 /**
  * AI service for predicting potential defaulters
@@ -100,8 +75,8 @@ export class DefaulterPredictionService {
       // Only add predictions for students with missing submissions
       if (stats.missingCount > 0) {
         predictions.push({
-          studentId: student.studentId,
-          studentName: student.studentName,
+          studentId: student.studentId || student.id, // Use either field that's available
+          studentName: student.studentName || student.fullName, // Use either field that's available
           scholarNumber: student.scholarNumber,
           defaultProbability,
           missingCount: stats.missingCount,
